@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import '../core/arrow_model.dart';
 
 class ArrowTile extends PositionComponent with TapCallbacks {
-  static const double cellSize = 52.0;
+  static const double cellSize = 40.0;
 
   ArrowModel model;
   final Function(ArrowModel) onTapped;
@@ -15,125 +15,119 @@ class ArrowTile extends PositionComponent with TapCallbacks {
     required this.onTapped,
     required this.isDark,
   }) {
-    size = Vector2(cellSize, cellSize);
-    position = Vector2(
-      model.col * cellSize,
-      model.row * cellSize,
-    );
+    size = Vector2.zero(); // no fixed size, we draw manually
+    position = Vector2.zero();
   }
 
   void updateModel(ArrowModel newModel) {
     model = newModel;
-    position = Vector2(
-      model.col * cellSize,
-      model.row * cellSize,
-    );
   }
 
-  Color get _bgColor =>
-      isDark ? const Color(0xFF1A1A2E) : const Color(0xFFE8E8E8);
+  Color get _pathColor {
+    switch (model.state) {
+      case ArrowState.idle:
+        return isDark
+            ? const Color(0xFFBFC6FF)
+            : const Color(0xFF3A3A6A);
+      case ArrowState.moving:
+        return isDark
+            ? const Color(0xFFDDDDDD)
+            : const Color(0xFF888888);
+      case ArrowState.collided:
+        return Colors.red.shade400;
+      case ArrowState.extracted:
+        return Colors.transparent;
+    }
+  }
+
+  // Convert grid position to canvas offset accounting for movement offset
+  Offset _cellCenter(GridPosition cell) {
+    final col = cell.col + model.offsetCol;
+    final row = cell.row + model.offsetRow;
+    return Offset(
+      col * cellSize + cellSize / 2,
+      row * cellSize + cellSize / 2,
+    );
+  }
 
   @override
   void render(Canvas canvas) {
     if (model.state == ArrowState.extracted) return;
+    if (model.cells.isEmpty) return;
 
-    Color arrowColor;
-    Color bgColor;
+    final color = _pathColor;
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = cellSize * 0.28
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
 
-    switch (model.state) {
-      case ArrowState.idle:
-        arrowColor = isDark ? Colors.white : Colors.black;
-        bgColor = _bgColor;
-        break;
-      case ArrowState.moving:
-        arrowColor = Colors.grey.shade400;
-        bgColor = _bgColor;
-        break;
-      case ArrowState.collided:
-        arrowColor = Colors.red.shade400;
-        bgColor = Colors.red.shade900.withAlpha(80);
-        break;
-      case ArrowState.extracted:
-        return;
+    // draw the path
+    final path = Path();
+    final first = _cellCenter(model.cells.first);
+    path.moveTo(first.dx, first.dy);
+
+    for (int i = 1; i < model.cells.length; i++) {
+      final pt = _cellCenter(model.cells[i]);
+      path.lineTo(pt.dx, pt.dy);
     }
 
-    // background tile
-    final bgPaint = Paint()
-      ..color = bgColor
-      ..style = PaintingStyle.fill;
+    canvas.drawPath(path, paint);
 
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(3, 3, size.x - 6, size.y - 6),
-        const Radius.circular(8),
-      ),
-      bgPaint,
-    );
+    // draw arrowhead at head
+    _drawArrowhead(canvas, color);
+  }
 
-    // arrow
-    final paint = Paint()
-      ..color = arrowColor
-      ..strokeWidth = 2.5
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
+  void _drawArrowhead(Canvas canvas, Color color) {
+    final head = _cellCenter(model.head);
+    const double headSize = 7.0;
 
     final fillPaint = Paint()
-      ..color = arrowColor
+      ..color = color
       ..style = PaintingStyle.fill;
 
-    final center = Offset(size.x / 2, size.y / 2);
-    const double headSize = 8.0;
-    const double shaftLength = 12.0;
-
-    Offset tail;
-    Offset head;
+    final arrowPath = Path();
 
     switch (model.direction) {
       case ArrowDirection.up:
-        tail = Offset(center.dx, center.dy + shaftLength);
-        head = Offset(center.dx, center.dy - shaftLength);
+        arrowPath.moveTo(head.dx, head.dy - headSize * 1.5);
+        arrowPath.lineTo(head.dx - headSize, head.dy);
+        arrowPath.lineTo(head.dx + headSize, head.dy);
         break;
       case ArrowDirection.down:
-        tail = Offset(center.dx, center.dy - shaftLength);
-        head = Offset(center.dx, center.dy + shaftLength);
+        arrowPath.moveTo(head.dx, head.dy + headSize * 1.5);
+        arrowPath.lineTo(head.dx - headSize, head.dy);
+        arrowPath.lineTo(head.dx + headSize, head.dy);
         break;
       case ArrowDirection.left:
-        tail = Offset(center.dx + shaftLength, center.dy);
-        head = Offset(center.dx - shaftLength, center.dy);
+        arrowPath.moveTo(head.dx - headSize * 1.5, head.dy);
+        arrowPath.lineTo(head.dx, head.dy - headSize);
+        arrowPath.lineTo(head.dx, head.dy + headSize);
         break;
       case ArrowDirection.right:
-        tail = Offset(center.dx - shaftLength, center.dy);
-        head = Offset(center.dx + shaftLength, center.dy);
+        arrowPath.moveTo(head.dx + headSize * 1.5, head.dy);
+        arrowPath.lineTo(head.dx, head.dy - headSize);
+        arrowPath.lineTo(head.dx, head.dy + headSize);
         break;
     }
 
-    canvas.drawLine(tail, head, paint);
+    arrowPath.close();
+    canvas.drawPath(arrowPath, fillPaint);
+  }
 
-    final path = Path();
-    switch (model.direction) {
-      case ArrowDirection.up:
-        path.moveTo(head.dx, head.dy);
-        path.lineTo(head.dx - headSize, head.dy + headSize);
-        path.lineTo(head.dx + headSize, head.dy + headSize);
-        break;
-      case ArrowDirection.down:
-        path.moveTo(head.dx, head.dy);
-        path.lineTo(head.dx - headSize, head.dy - headSize);
-        path.lineTo(head.dx + headSize, head.dy - headSize);
-        break;
-      case ArrowDirection.left:
-        path.moveTo(head.dx, head.dy);
-        path.lineTo(head.dx + headSize, head.dy - headSize);
-        path.lineTo(head.dx + headSize, head.dy + headSize);
-        break;
-      case ArrowDirection.right:
-        path.moveTo(head.dx, head.dy);
-        path.lineTo(head.dx - headSize, head.dy - headSize);
-        path.lineTo(head.dx - headSize, head.dy + headSize);
-        break;
+  @override
+  bool containsLocalPoint(Vector2 point) {
+    // check if point is near any cell in the path
+    for (final cell in model.cells) {
+      final center = _cellCenter(cell);
+      final dx = point.x - center.dx;
+      final dy = point.y - center.dy;
+      if (dx * dx + dy * dy < (cellSize * 0.6) * (cellSize * 0.6)) {
+        return true;
+      }
     }
-    path.close();
-    canvas.drawPath(path, fillPaint);
+    return false;
   }
 
   @override

@@ -4,36 +4,6 @@ enum ArrowState { idle, moving, extracted, collided }
 
 enum DifficultyType { easy, hard, nightmare }
 
-class ArrowModel {
-  final int id;
-  int row;
-  int col;
-  final ArrowDirection direction;
-  ArrowState state;
-
-  ArrowModel({
-    required this.id,
-    required this.row,
-    required this.col,
-    required this.direction,
-    this.state = ArrowState.idle,
-  });
-
-  ArrowModel copyWith({
-    int? row,
-    int? col,
-    ArrowState? state,
-  }) {
-    return ArrowModel(
-      id: id,
-      row: row ?? this.row,
-      col: col ?? this.col,
-      direction: direction,
-      state: state ?? this.state,
-    );
-  }
-}
-
 class GridPosition {
   final int row;
   final int col;
@@ -59,6 +29,35 @@ class GridPosition {
         return GridPosition(row, col + 1);
     }
   }
+
+  @override
+  String toString() => '$row\_$col';
+}
+
+class ArrowModel {
+  final int id;
+  final List<GridPosition> cells; // full path, head is cells.last
+  final ArrowDirection direction;  // direction the head points = exit direction
+  ArrowState state;
+
+  // for movement animation
+  double offsetRow;
+  double offsetCol;
+
+  ArrowModel({
+    required this.id,
+    required this.cells,
+    required this.direction,
+    this.state = ArrowState.idle,
+    this.offsetRow = 0,
+    this.offsetCol = 0,
+  });
+
+  // head is the last cell in the path
+  GridPosition get head => cells.last;
+
+  // tail is the first cell
+  GridPosition get tail => cells.first;
 }
 
 DifficultyType getDifficulty(int level) {

@@ -20,38 +20,110 @@ class LevelGenerator {
     final config = LevelConfig.fromDifficulty(difficulty, level);
     final random = Random(level * 9999);
 
+    final int rows = config.gridRows;
+    final int cols = config.gridCols;
+
+    // occupiedMap: which arrow id owns each cell
+    final Map<String, int> occupiedMap = {};
     final List<ArrowModel> arrows = [];
-    final Set<String> occupied = {};
-
     int id = 0;
-    int attempts = 0;
-    final maxAttempts = config.arrowCount * 10;
 
-    while (arrows.length < config.arrowCount && attempts < maxAttempts) {
-      attempts++;
+    // get all cells
+    final allCells = <GridPosition>[];
+    for (int r = 0; r < rows; r++) {
+      for (int c = 0; c < cols; c++) {
+        allCells.add(GridPosition(r, c));
+      }
+    }
+    allCells.shuffle(random);
 
-      final row = random.nextInt(config.gridRows);
-      final col = random.nextInt(config.gridCols);
-      final key = '$row\_$col';
+    for (final startCell in allCells) {
+      final key = startCell.toString();
+      if (occupiedMap.containsKey(key)) continue;
 
-      if (occupied.contains(key)) continue;
+      // grow a snake path from this cell
+      final path = _growPath(
+        start: startCell,
+        occupiedMap: occupiedMap,
+        rows: rows,
+        cols: cols,
+        random: random,
+        minLength: config.minArrowLength,
+        maxLength: config.maxArrowLength,
+      );
 
-      final direction =
-          ArrowDirection.values[random.nextInt(ArrowDirection.values.length)];
+      if (path.length < 2) continue;
 
-      occupied.add(key);
+      // pick exit direction based on last segment direction
+      final exitDir = _getExitDirection(path);
+
+      // mark all cells
+      for (final cell in path) {
+        occupiedMap[cell.toString()] = id;
+      }
+
       arrows.add(ArrowModel(
         id: id++,
-        row: row,
-        col: col,
-        direction: direction,
+        cells: path,
+        direction: exitDir,
       ));
     }
 
     return LevelData(
       arrows: arrows,
-      rows: config.gridRows,
-      cols: config.gridCols,
+      rows: rows,
+      cols: cols,
     );
+  }
+
+  static List<GridPosition> _growPath({
+    required GridPosition start,
+    required Map<String, int> occupiedMap,
+    required int rows,
+    required int cols,
+    required Random random,
+    required int minLength,
+    required int maxLength,
+  }) {
+    final path = <GridPosition>[start];
+    final targetLength = minLength + random.nextInt(maxLength - minLength + 1);
+
+    int attempts = 0;
+    while (path.length < targetLength && attempts < 50) {
+      attempts++;
+      final current = path.last;
+
+      // get valid neighbors
+      final neighbors = <GridPosition>[];
+      for (final dir in ArrowDirection.values) {
+        final next = current.shift(dir);
+        if (next.row < 0 || next.row >= rows) continue;
+        if (next.col < 0 || next.col >= cols) continue;
+        if (occupiedMap.containsKey(next.toString())) continue;
+        if (path.contains(next)) continue;
+        neighbors.add(next);
+      }
+
+      if (neighbors.isEmpty) break;
+      neighbors.shuffle(random);
+      path.add(neighbors.first);
+    }
+
+    return path;
+  }
+
+  static ArrowDirection _getExitDirection(List<GridPosition> path) {
+    if (path.length < 2) return ArrowDirection.right;
+
+    final secondLast = path[path.length - 2];
+    final last = path[path.length - 1];
+
+    final dr = last.row - secondLast.row;
+    final dc = last.col - secondLast.col;
+
+    if (dr == -1) return ArrowDirection.up;
+    if (dr == 1) return ArrowDirection.down;
+    if (dc == -1) return ArrowDirection.left;
+    return ArrowDirection.right;
   }
 }
