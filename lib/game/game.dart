@@ -16,8 +16,6 @@ class NiyakGame extends FlameGame with TapCallbacks {
   late LevelData _levelData;
   final List<ArrowTile> _tiles = [];
   final gameWorld = PositionComponent();
-
-  // arrows currently moving
   final List<_MovingArrow> _movingArrows = [];
 
   NiyakGame({
@@ -60,88 +58,88 @@ class NiyakGame extends FlameGame with TapCallbacks {
 
   void _onArrowTapped(ArrowModel model) {
     if (model.state != ArrowState.idle) return;
-
-    // mark as moving
     model.state = ArrowState.moving;
     _getTile(model)?.updateModel(model);
-
-    _movingArrows.add(_MovingArrow(
-      model: model,
-      currentRow: model.row.toDouble(),
-      currentCol: model.col.toDouble(),
-    ));
+    _movingArrows.add(_MovingArrow(model: model));
   }
 
   @override
   void update(double dt) {
     super.update(dt);
 
-    const double speed = 8.0; // cells per second
-
+    const double speed = 6.0;
     final toRemove = <_MovingArrow>[];
 
     for (final moving in _movingArrows) {
-      // move
       switch (moving.model.direction) {
         case ArrowDirection.up:
-          moving.currentRow -= speed * dt;
+          moving.model.offsetRow -= speed * dt;
           break;
         case ArrowDirection.down:
-          moving.currentRow += speed * dt;
+          moving.model.offsetRow += speed * dt;
           break;
         case ArrowDirection.left:
-          moving.currentCol -= speed * dt;
+          moving.model.offsetCol -= speed * dt;
           break;
         case ArrowDirection.right:
-          moving.currentCol += speed * dt;
+          moving.model.offsetCol += speed * dt;
           break;
       }
 
-      // update tile visual position
-      final tile = _getTile(moving.model);
-      if (tile != null) {
-        tile.position = Vector2(
-          moving.currentCol * ArrowTile.cellSize,
-          moving.currentRow * ArrowTile.cellSize,
-        );
-      }
+      _getTile(moving.model)?.updateModel(moving.model);
 
-      // check collision with idle arrows
+      // check collision using leading edge only
       bool collided = false;
-      for (final other in _tiles) {
-        if (other.model.id == moving.model.id) continue;
-        if (other.model.state != ArrowState.idle) continue;
+      final headRow = moving.model.head.row + moving.model.offsetRow;
+      final headCol = moving.model.head.col + moving.model.offsetCol;
 
-        final dx = (moving.currentCol - other.model.col).abs();
-        final dy = (moving.currentRow - other.model.row).abs();
+      for (final tile in _tiles) {
+        if (tile.model.id == moving.model.id) continue;
+        if (tile.model.state != ArrowState.idle) continue;
 
-        if (dx < 0.6 && dy < 0.6) {
-          // collision!
-          collided = true;
-          _handleCollision(moving, other.model);
-          toRemove.add(moving);
-          break;
+        for (final cell in tile.model.cells) {
+          final dr = (headRow - cell.row).abs();
+          final dc = (headCol - cell.col).abs();
+          if (dr < 0.5 && dc < 0.5) {
+            collided = true;
+            _handleCollision(moving, tile.model);
+            toRemove.add(moving);
+            break;
+          }
         }
+        if (collided) break;
       }
 
       if (collided) continue;
 
-      // check if exited grid
-      if (moving.currentRow < -1 ||
-          moving.currentRow > _levelData.rows ||
-          moving.currentCol < -1 ||
-          moving.currentCol > _levelData.cols) {
-        // extracted successfully
+      // check if head has fully exited grid
+      bool exited = false;
+      switch (moving.model.direction) {
+        case ArrowDirection.up:
+          exited = headRow < -1;
+          break;
+        case ArrowDirection.down:
+          exited = headRow > _levelData.rows;
+          break;
+        case ArrowDirection.left:
+          exited = headCol < -1;
+          break;
+        case ArrowDirection.right:
+          exited = headCol > _levelData.cols;
+          break;
+      }
+
+      if (exited) {
         moving.model.state = ArrowState.extracted;
-        tile?.removeFromParent();
+        _getTile(moving.model)?.removeFromParent();
         _tiles.removeWhere((t) => t.model.id == moving.model.id);
         toRemove.add(moving);
 
         gameState.correctTap();
 
-        // check level complete
-        final remaining = _tiles.where(
-            (t) => t.model.state != ArrowState.extracted).toList();
+        final remaining = _tiles
+            .where((t) => t.model.state != ArrowState.extracted)
+            .toList();
         if (remaining.isEmpty) {
           Future.delayed(const Duration(milliseconds: 300), () {
             onLevelComplete();
@@ -164,26 +162,28 @@ class NiyakGame extends FlameGame with TapCallbacks {
 
     gameState.wrongTap();
 
-    // reset both after delay
-    Future.delayed(const Duration(milliseconds: 500), () {
+    Future.delayed(const Duration(milliseconds: 600), () {
+      moving.model.offsetRow = 0;
+      moving.model.offsetCol = 0;
       moving.model.state = ArrowState.idle;
-      moving.model.row = moving.model.row;
-      moving.model.col = moving.model.col;
-
       other.state = ArrowState.idle;
 
       _getTile(moving.model)?.updateModel(moving.model);
       _getTile(other)?.updateModel(other);
 
-      // reset position visually
-      _getTile(moving.model)?.position = Vector2(
-        moving.model.col * ArrowTile.cellSize,
-        moving.model.row * ArrowTile.cellSize,
-      );
+      if (!_tiles.any((t) => t.model.id == moving.model.id)) {
+        final tile = ArrowTile(
+          model: moving.model,
+          onTapped: _onArrowTapped,
+          isDark: gameState.isDarkTheme,
+        );
+        _tiles.add(tile);
+        gameWorld.add(tile);
+      }
     });
 
     if (gameState.isGameOver) {
-      Future.delayed(const Duration(milliseconds: 600), () {
+      Future.delayed(const Duration(milliseconds: 700), () {
         onGameOver();
       });
     }
@@ -193,18 +193,14 @@ class NiyakGame extends FlameGame with TapCallbacks {
     if (gameState.hintsLeft <= 0) return;
     gameState.useHint();
 
-    // find an arrow that can be safely extracted
     for (final tile in _tiles) {
       if (tile.model.state != ArrowState.idle) continue;
       if (_isSafeToExtract(tile.model)) {
-        tile.model.state = ArrowState.moving;
+        tile.model.state = ArrowState.collided;
         tile.updateModel(tile.model);
-
-        // flash hint color briefly then auto-tap
-        Future.delayed(const Duration(milliseconds: 600), () {
+        Future.delayed(const Duration(milliseconds: 800), () {
           tile.model.state = ArrowState.idle;
           tile.updateModel(tile.model);
-          _onArrowTapped(tile.model);
         });
         break;
       }
@@ -212,28 +208,27 @@ class NiyakGame extends FlameGame with TapCallbacks {
   }
 
   bool _isSafeToExtract(ArrowModel arrow) {
-    // check if any idle arrow is in the path
-    for (final other in _tiles) {
-      if (other.model.id == arrow.id) continue;
-      if (other.model.state != ArrowState.idle) continue;
+    for (final tile in _tiles) {
+      if (tile.model.id == arrow.id) continue;
+      if (tile.model.state != ArrowState.idle) continue;
 
-      switch (arrow.direction) {
-        case ArrowDirection.up:
-          if (other.model.col == arrow.col && other.model.row < arrow.row)
-            return false;
-          break;
-        case ArrowDirection.down:
-          if (other.model.col == arrow.col && other.model.row > arrow.row)
-            return false;
-          break;
-        case ArrowDirection.left:
-          if (other.model.row == arrow.row && other.model.col < arrow.col)
-            return false;
-          break;
-        case ArrowDirection.right:
-          if (other.model.row == arrow.row && other.model.col > arrow.col)
-            return false;
-          break;
+      for (final cell in arrow.cells) {
+        for (final other in tile.model.cells) {
+          switch (arrow.direction) {
+            case ArrowDirection.up:
+              if (cell.col == other.col && other.row < cell.row) return false;
+              break;
+            case ArrowDirection.down:
+              if (cell.col == other.col && other.row > cell.row) return false;
+              break;
+            case ArrowDirection.left:
+              if (cell.row == other.row && other.col < cell.col) return false;
+              break;
+            case ArrowDirection.right:
+              if (cell.row == other.row && other.col > cell.col) return false;
+              break;
+          }
+        }
       }
     }
     return true;
@@ -248,20 +243,12 @@ class NiyakGame extends FlameGame with TapCallbacks {
   }
 
   @override
-  Color backgroundColor() =>
-      gameState.isDarkTheme
-          ? const Color(0xFF0D0D1A)
-          : const Color(0xFFF5F5F5);
+  Color backgroundColor() => gameState.isDarkTheme
+      ? const Color(0xFF0D0D1A)
+      : const Color(0xFFF5F5F5);
 }
 
 class _MovingArrow {
   final ArrowModel model;
-  double currentRow;
-  double currentCol;
-
-  _MovingArrow({
-    required this.model,
-    required this.currentRow,
-    required this.currentCol,
-  });
+  _MovingArrow({required this.model});
 }

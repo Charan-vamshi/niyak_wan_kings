@@ -58,10 +58,10 @@ class ArrowTile extends PositionComponent with TapCallbacks {
     final color = _pathColor;
     final paint = Paint()
       ..color = color
-      ..strokeWidth = cellSize * 0.28
+      ..strokeWidth = cellSize * 0.12
       ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
+      ..strokeCap = StrokeCap.square
+      ..strokeJoin = StrokeJoin.miter;
 
     // draw the path
     final path = Path();
@@ -81,7 +81,7 @@ class ArrowTile extends PositionComponent with TapCallbacks {
 
   void _drawArrowhead(Canvas canvas, Color color) {
     final head = _cellCenter(model.head);
-    const double headSize = 7.0;
+    const double headSize = 5.0;
 
     final fillPaint = Paint()
       ..color = color
