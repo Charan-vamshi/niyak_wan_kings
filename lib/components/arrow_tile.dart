@@ -15,7 +15,7 @@ class ArrowTile extends PositionComponent with TapCallbacks {
     required this.onTapped,
     required this.isDark,
   }) {
-    size = Vector2.zero(); // no fixed size, we draw manually
+    size = Vector2.zero();
     position = Vector2.zero();
   }
 
@@ -40,7 +40,7 @@ class ArrowTile extends PositionComponent with TapCallbacks {
     }
   }
 
-  // Convert grid position to canvas offset accounting for movement offset
+  // actual canvas position of a cell accounting for movement offset
   Offset _cellCenter(GridPosition cell) {
     final col = cell.col + model.offsetCol;
     final row = cell.row + model.offsetRow;
@@ -56,6 +56,7 @@ class ArrowTile extends PositionComponent with TapCallbacks {
     if (model.cells.isEmpty) return;
 
     final color = _pathColor;
+
     final paint = Paint()
       ..color = color
       ..strokeWidth = cellSize * 0.12
@@ -63,10 +64,10 @@ class ArrowTile extends PositionComponent with TapCallbacks {
       ..strokeCap = StrokeCap.square
       ..strokeJoin = StrokeJoin.miter;
 
-    // draw the path
+    // draw path from head to tail
     final path = Path();
-    final first = _cellCenter(model.cells.first);
-    path.moveTo(first.dx, first.dy);
+    final headCenter = _cellCenter(model.head);
+    path.moveTo(headCenter.dx, headCenter.dy);
 
     for (int i = 1; i < model.cells.length; i++) {
       final pt = _cellCenter(model.cells[i]);
@@ -75,13 +76,12 @@ class ArrowTile extends PositionComponent with TapCallbacks {
 
     canvas.drawPath(path, paint);
 
-    // draw arrowhead at head
-    _drawArrowhead(canvas, color);
+    // draw arrowhead at head pointing in direction
+    _drawArrowhead(canvas, color, headCenter);
   }
 
-  void _drawArrowhead(Canvas canvas, Color color) {
-    final head = _cellCenter(model.head);
-    const double headSize = 5.0;
+  void _drawArrowhead(Canvas canvas, Color color, Offset head) {
+    const double headSize = 6.0;
 
     final fillPaint = Paint()
       ..color = color
@@ -118,7 +118,6 @@ class ArrowTile extends PositionComponent with TapCallbacks {
 
   @override
   bool containsLocalPoint(Vector2 point) {
-    // check if point is near any cell in the path
     for (final cell in model.cells) {
       final center = _cellCenter(cell);
       final dx = point.x - center.dx;

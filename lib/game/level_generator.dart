@@ -23,27 +23,34 @@ class LevelGenerator {
     final int rows = config.gridRows;
     final int cols = config.gridCols;
 
-    // occupiedMap: which arrow id owns each cell
     final Map<String, int> occupiedMap = {};
     final List<ArrowModel> arrows = [];
     int id = 0;
 
-    // get all cells
-    final allCells = <GridPosition>[];
-    for (int r = 0; r < rows; r++) {
-      for (int c = 0; c < cols; c++) {
-        allCells.add(GridPosition(r, c));
+    int attempts = 0;
+    while (arrows.length < config.arrowCount && attempts < 10000) {
+      attempts++;
+
+      // pick random head cell
+      final headRow = random.nextInt(rows);
+      final headCol = random.nextInt(cols);
+      final headKey = '${headRow}_$headCol';
+      if (occupiedMap.containsKey(headKey)) continue;
+
+      // pick random direction
+      final direction =
+          ArrowDirection.values[random.nextInt(ArrowDirection.values.length)];
+
+      // exit path from head must be completely clear
+      if (!_isExitClear(headRow, headCol, direction, occupiedMap, rows, cols)) {
+        continue;
       }
-    }
-    allCells.shuffle(random);
 
-    for (final startCell in allCells) {
-      final key = startCell.toString();
-      if (occupiedMap.containsKey(key)) continue;
-
-      // grow a snake path from this cell
-      final path = _growPath(
-        start: startCell,
+      // grow tail from head (tail grows in any direction except exit direction)
+      final cells = _growTail(
+        headRow: headRow,
+        headCol: headCol,
+        direction: direction,
         occupiedMap: occupiedMap,
         rows: rows,
         cols: cols,
@@ -52,20 +59,17 @@ class LevelGenerator {
         maxLength: config.maxArrowLength,
       );
 
-      if (path.length < 2) continue;
-
-      // pick exit direction based on last segment direction
-      final exitDir = _getExitDirection(path);
+      if (cells.isEmpty) continue;
 
       // mark all cells
-      for (final cell in path) {
+      for (final cell in cells) {
         occupiedMap[cell.toString()] = id;
       }
 
       arrows.add(ArrowModel(
         id: id++,
-        cells: path,
-        direction: exitDir,
+        cells: cells,
+        direction: direction,
       ));
     }
 
@@ -76,8 +80,42 @@ class LevelGenerator {
     );
   }
 
-  static List<GridPosition> _growPath({
-    required GridPosition start,
+  static bool _isExitClear(
+    int row,
+    int col,
+    ArrowDirection direction,
+    Map<String, int> occupiedMap,
+    int rows,
+    int cols,
+  ) {
+    int r = row;
+    int c = col;
+
+    while (true) {
+      switch (direction) {
+        case ArrowDirection.up:
+          r--;
+          break;
+        case ArrowDirection.down:
+          r++;
+          break;
+        case ArrowDirection.left:
+          c--;
+          break;
+        case ArrowDirection.right:
+          c++;
+          break;
+      }
+
+      if (r < 0 || r >= rows || c < 0 || c >= cols) return true;
+      if (occupiedMap.containsKey('${r}_$c')) return false;
+    }
+  }
+
+  static List<GridPosition> _growTail({
+    required int headRow,
+    required int headCol,
+    required ArrowDirection direction,
     required Map<String, int> occupiedMap,
     required int rows,
     required int cols,
@@ -85,45 +123,35 @@ class LevelGenerator {
     required int minLength,
     required int maxLength,
   }) {
-    final path = <GridPosition>[start];
-    final targetLength = minLength + random.nextInt(maxLength - minLength + 1);
+    // cells[0] = head
+    final cells = <GridPosition>[GridPosition(headRow, headCol)];
+    final targetLength =
+        minLength + random.nextInt(maxLength - minLength + 1);
 
     int attempts = 0;
-    while (path.length < targetLength && attempts < 50) {
+    while (cells.length < targetLength && attempts < 100) {
       attempts++;
-      final current = path.last;
+      final current = cells.last;
 
-      // get valid neighbors
       final neighbors = <GridPosition>[];
       for (final dir in ArrowDirection.values) {
+        // never grow in exit direction — that would block the head
+        if (dir == direction) continue;
+
         final next = current.shift(dir);
         if (next.row < 0 || next.row >= rows) continue;
         if (next.col < 0 || next.col >= cols) continue;
         if (occupiedMap.containsKey(next.toString())) continue;
-        if (path.contains(next)) continue;
+        if (cells.contains(next)) continue;
+
         neighbors.add(next);
       }
 
       if (neighbors.isEmpty) break;
       neighbors.shuffle(random);
-      path.add(neighbors.first);
+      cells.add(neighbors.first);
     }
 
-    return path;
-  }
-
-  static ArrowDirection _getExitDirection(List<GridPosition> path) {
-    if (path.length < 2) return ArrowDirection.right;
-
-    final secondLast = path[path.length - 2];
-    final last = path[path.length - 1];
-
-    final dr = last.row - secondLast.row;
-    final dc = last.col - secondLast.col;
-
-    if (dr == -1) return ArrowDirection.up;
-    if (dr == 1) return ArrowDirection.down;
-    if (dc == -1) return ArrowDirection.left;
-    return ArrowDirection.right;
+    return cells;
   }
 }

@@ -31,16 +31,14 @@ class GridPosition {
   }
 
   @override
-  String toString() => '$row\_$col';
+  String toString() => '${row}_$col';
 }
 
 class ArrowModel {
   final int id;
-  final List<GridPosition> cells; // full path, head is cells.last
-  final ArrowDirection direction;  // direction the head points = exit direction
+  final List<GridPosition> cells; // cells[0] = head, rest = tail
+  final ArrowDirection direction;
   ArrowState state;
-
-  // for movement animation
   double offsetRow;
   double offsetCol;
 
@@ -53,11 +51,8 @@ class ArrowModel {
     this.offsetCol = 0,
   });
 
-  // head is the last cell in the path
-  GridPosition get head => cells.last;
-
-  // tail is the first cell
-  GridPosition get tail => cells.first;
+  GridPosition get head => cells[0];
+  GridPosition get tail => cells[cells.length - 1];
 }
 
 DifficultyType getDifficulty(int level) {

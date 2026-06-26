@@ -8,7 +8,7 @@ import '../core/game_state.dart';
 import '../components/arrow_tile.dart';
 import 'level_generator.dart';
 
-class NiyakGame extends FlameGame with TapCallbacks {
+class NiyakGame extends FlameGame with DragCallbacks, ScaleDetector {
   final GameState gameState;
   final VoidCallback onLevelComplete;
   final VoidCallback onGameOver;
@@ -17,6 +17,11 @@ class NiyakGame extends FlameGame with TapCallbacks {
   final List<ArrowTile> _tiles = [];
   final gameWorld = PositionComponent();
   final List<_MovingArrow> _movingArrows = [];
+
+  double _scale = 1.0;
+  double _startScale = 1.0;
+  static const double _minScale = 0.3;
+  static const double _maxScale = 2.0;
 
   NiyakGame({
     required this.gameState,
@@ -40,6 +45,7 @@ class NiyakGame extends FlameGame with TapCallbacks {
     final gridWidth = _levelData.cols * ArrowTile.cellSize;
     final gridHeight = _levelData.rows * ArrowTile.cellSize;
 
+    // center grid
     gameWorld.position = Vector2(
       (size.x - gridWidth) / 2,
       (size.y - gridHeight) / 2,
@@ -63,88 +69,78 @@ class NiyakGame extends FlameGame with TapCallbacks {
     _movingArrows.add(_MovingArrow(model: model));
   }
 
+  // Snake movement — advances head one cell at a time
+  // Each cell takes position of cell ahead of it
+  static const double _stepInterval = 0.08; // seconds per cell step
+
   @override
   void update(double dt) {
     super.update(dt);
 
-    const double speed = 6.0;
     final toRemove = <_MovingArrow>[];
 
     for (final moving in _movingArrows) {
-      switch (moving.model.direction) {
-        case ArrowDirection.up:
-          moving.model.offsetRow -= speed * dt;
-          break;
-        case ArrowDirection.down:
-          moving.model.offsetRow += speed * dt;
-          break;
-        case ArrowDirection.left:
-          moving.model.offsetCol -= speed * dt;
-          break;
-        case ArrowDirection.right:
-          moving.model.offsetCol += speed * dt;
-          break;
-      }
+      moving.elapsed += dt;
 
-      _getTile(moving.model)?.updateModel(moving.model);
+      while (moving.elapsed >= _stepInterval) {
+        moving.elapsed -= _stepInterval;
 
-      // check collision using leading edge only
-      bool collided = false;
-      final headRow = moving.model.head.row + moving.model.offsetRow;
-      final headCol = moving.model.head.col + moving.model.offsetCol;
+        // advance the snake by one cell
+        final newHead = moving.model.head.shift(moving.model.direction);
 
-      for (final tile in _tiles) {
-        if (tile.model.id == moving.model.id) continue;
-        if (tile.model.state != ArrowState.idle) continue;
+        // check collision with idle arrows at new head position
+        bool collided = false;
+        for (final tile in _tiles) {
+          if (tile.model.id == moving.model.id) continue;
+          if (tile.model.state != ArrowState.idle) continue;
 
-        for (final cell in tile.model.cells) {
-          final dr = (headRow - cell.row).abs();
-          final dc = (headCol - cell.col).abs();
-          if (dr < 0.5 && dc < 0.5) {
-            collided = true;
-            _handleCollision(moving, tile.model);
+          for (final cell in tile.model.cells) {
+            if (cell == newHead) {
+              collided = true;
+              _handleCollision(moving, tile.model);
+              toRemove.add(moving);
+              break;
+            }
+          }
+          if (collided) break;
+        }
+
+        if (collided) break;
+
+        // check if head exited grid
+        if (newHead.row < 0 ||
+            newHead.row >= _levelData.rows ||
+            newHead.col < 0 ||
+            newHead.col >= _levelData.cols) {
+          // remove tail cell (snake shrinks from back)
+          moving.model.cells.removeLast();
+
+          if (moving.model.cells.isEmpty) {
+            // fully extracted
+            moving.model.state = ArrowState.extracted;
+            _getTile(moving.model)?.removeFromParent();
+            _tiles.removeWhere((t) => t.model.id == moving.model.id);
             toRemove.add(moving);
+
+            gameState.correctTap();
+
+            final remaining = _tiles
+                .where((t) => t.model.state != ArrowState.extracted)
+                .toList();
+            if (remaining.isEmpty) {
+              Future.delayed(const Duration(milliseconds: 300), () {
+                onLevelComplete();
+              });
+            }
             break;
           }
+        } else {
+          // add new head, remove tail (snake moves forward)
+          moving.model.cells.insert(0, newHead);
+          moving.model.cells.removeLast();
         }
-        if (collided) break;
-      }
 
-      if (collided) continue;
-
-      // check if head has fully exited grid
-      bool exited = false;
-      switch (moving.model.direction) {
-        case ArrowDirection.up:
-          exited = headRow < -1;
-          break;
-        case ArrowDirection.down:
-          exited = headRow > _levelData.rows;
-          break;
-        case ArrowDirection.left:
-          exited = headCol < -1;
-          break;
-        case ArrowDirection.right:
-          exited = headCol > _levelData.cols;
-          break;
-      }
-
-      if (exited) {
-        moving.model.state = ArrowState.extracted;
-        _getTile(moving.model)?.removeFromParent();
-        _tiles.removeWhere((t) => t.model.id == moving.model.id);
-        toRemove.add(moving);
-
-        gameState.correctTap();
-
-        final remaining = _tiles
-            .where((t) => t.model.state != ArrowState.extracted)
-            .toList();
-        if (remaining.isEmpty) {
-          Future.delayed(const Duration(milliseconds: 300), () {
-            onLevelComplete();
-          });
-        }
+        _getTile(moving.model)?.updateModel(moving.model);
       }
     }
 
@@ -188,6 +184,29 @@ class NiyakGame extends FlameGame with TapCallbacks {
       });
     }
   }
+
+  // Pan
+  @override
+  void onDragUpdate(DragUpdateEvent event) {
+    gameWorld.position += event.localDelta;
+  }
+
+  // Pinch zoom
+  @override
+  void onScaleStart(ScaleStartInfo info) {
+    _startScale = _scale;
+  }
+
+  @override
+  void onScaleUpdate(ScaleUpdateInfo info) {
+    final newScale = (_startScale * info.scale.global.x)
+        .clamp(_minScale, _maxScale);
+    _scale = newScale;
+    gameWorld.scale = Vector2.all(_scale);
+  }
+
+  @override
+  void onScaleEnd(ScaleEndInfo info) {}
 
   void useHint() {
     if (gameState.hintsLeft <= 0) return;
@@ -250,5 +269,7 @@ class NiyakGame extends FlameGame with TapCallbacks {
 
 class _MovingArrow {
   final ArrowModel model;
+  double elapsed = 0;
+
   _MovingArrow({required this.model});
 }
