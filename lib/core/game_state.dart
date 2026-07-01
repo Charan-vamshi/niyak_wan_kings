@@ -6,9 +6,8 @@ class GameState extends ChangeNotifier {
   int _currentLevel = 1;
   int _lives = 3;
   int _hintsLeft = 2;
-  int _currentTapIndex = 0;
-  int _comboCount = 0;
   int _bestStreak = 0;
+  int _currentStreak = 0;
   bool _isDarkTheme = true;
   bool _soundEnabled = true;
   bool _hapticsEnabled = true;
@@ -16,16 +15,14 @@ class GameState extends ChangeNotifier {
   int get currentLevel => _currentLevel;
   int get lives => _lives;
   int get hintsLeft => _hintsLeft;
-  int get currentTapIndex => _currentTapIndex;
-  int get comboCount => _comboCount;
   int get bestStreak => _bestStreak;
+  int get currentStreak => _currentStreak;
   bool get isDarkTheme => _isDarkTheme;
   bool get soundEnabled => _soundEnabled;
   bool get hapticsEnabled => _hapticsEnabled;
-
+  bool get isGameOver => _lives <= 0;
   DifficultyType get currentDifficulty => getDifficulty(_currentLevel);
 
-  // Load saved data
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
     _currentLevel = prefs.getInt('currentLevel') ?? 1;
@@ -36,7 +33,6 @@ class GameState extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Save data
   Future<void> _save() async {
     final prefs = await SharedPreferences.getInstance();
     prefs.setInt('currentLevel', _currentLevel);
@@ -46,55 +42,31 @@ class GameState extends ChangeNotifier {
     prefs.setBool('hapticsEnabled', _hapticsEnabled);
   }
 
-  void toggleTheme() {
-    _isDarkTheme = !_isDarkTheme;
-    _save();
-    notifyListeners();
-  }
-
-  void toggleSound() {
-    _soundEnabled = !_soundEnabled;
-    _save();
-    notifyListeners();
-  }
-
-  void toggleHaptics() {
-    _hapticsEnabled = !_hapticsEnabled;
-    _save();
-    notifyListeners();
-  }
+  void toggleTheme() { _isDarkTheme = !_isDarkTheme; _save(); notifyListeners(); }
+  void toggleSound() { _soundEnabled = !_soundEnabled; _save(); notifyListeners(); }
+  void toggleHaptics() { _hapticsEnabled = !_hapticsEnabled; _save(); notifyListeners(); }
 
   void resetLevelState() {
     _lives = 3;
     _hintsLeft = 2;
-    _currentTapIndex = 0;
-    _comboCount = 0;
+    _currentStreak = 0;
     notifyListeners();
   }
 
-  void correctTap() {
-    _currentTapIndex++;
-    _comboCount++;
-    if (_comboCount > _bestStreak) {
-      _bestStreak = _comboCount;
-      _save();
-    }
+  void onCorrectTap() {
+    _currentStreak++;
+    if (_currentStreak > _bestStreak) { _bestStreak = _currentStreak; _save(); }
     notifyListeners();
   }
 
-  void wrongTap() {
+  void onWrongTap() {
     _lives--;
-    _comboCount = 0;
+    _currentStreak = 0;
     notifyListeners();
   }
-
-  bool get isGameOver => _lives <= 0;
 
   void useHint() {
-    if (_hintsLeft > 0) {
-      _hintsLeft--;
-      notifyListeners();
-    }
+    if (_hintsLeft > 0) { _hintsLeft--; notifyListeners(); }
   }
 
   void completeLevel() {
@@ -103,11 +75,10 @@ class GameState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void restartAfterGameOver() {
+  void restartLevel() {
     _lives = 3;
     _hintsLeft = 2;
-    _currentTapIndex = 0;
-    _comboCount = 0;
+    _currentStreak = 0;
     notifyListeners();
   }
 }

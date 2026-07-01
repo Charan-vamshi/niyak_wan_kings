@@ -22,147 +22,115 @@ class HudWidget extends StatelessWidget {
       listenable: gameState,
       builder: (context, _) {
         final isDark = gameState.isDarkTheme;
-        final bg = isDark ? const Color(0xFF0D0D1A) : const Color(0xFFF5F5F5);
         final fg = isDark ? Colors.white : Colors.black;
+        final bg = isDark
+            ? const Color(0xFF0D0D1A).withAlpha(230)
+            : const Color(0xFFF5F5F5).withAlpha(230);
 
-        return SafeArea(
-          child: Column(
-            children: [
-              // Top bar
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 8),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // Exit
-                    GestureDetector(
-                      onTap: onExitPressed,
-                      child: Icon(Icons.arrow_back_ios,
-                          color: fg, size: 22),
-                    ),
-
-                    // Level + difficulty
-                    Column(
-                      children: [
-                        Text(
-                          'LEVEL ${gameState.currentLevel}',
-                          style: TextStyle(
-                            color: fg,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 2,
-                          ),
-                        ),
-                        Text(
-                          _difficultyLabel(),
-                          style: TextStyle(
-                            color: fg.withOpacity(0.5),
-                            fontSize: 11,
-                            letterSpacing: 1.5,
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    // Theme toggle
-                    GestureDetector(
-                      onTap: () => gameState.toggleTheme(),
-                      child: Icon(
-                        isDark ? Icons.light_mode : Icons.dark_mode,
-                        color: fg,
-                        size: 22,
+        return Container(
+          color: bg,
+          child: SafeArea(
+            bottom: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      GestureDetector(
+                        onTap: onExitPressed,
+                        child: Icon(Icons.arrow_back_ios, color: fg, size: 22),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // Progress bar
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: LinearProgressIndicator(
-                    value: totalArrows == 0
-                        ? 0
-                        : gameState.currentTapIndex / totalArrows,
-                    backgroundColor: fg.withOpacity(0.1),
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                        fg.withOpacity(0.6)),
-                    minHeight: 3,
+                      Column(
+                        children: [
+                          Text('LEVEL ${gameState.currentLevel}',
+                              style: TextStyle(
+                                  color: fg,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 2)),
+                          Text(_difficultyLabel(),
+                              style: TextStyle(
+                                  color: fg.withAlpha(128),
+                                  fontSize: 11,
+                                  letterSpacing: 1.5)),
+                        ],
+                      ),
+                      GestureDetector(
+                        onTap: gameState.toggleTheme,
+                        child: Icon(
+                            isDark ? Icons.light_mode : Icons.dark_mode,
+                            color: fg, size: 22),
+                      ),
+                    ],
                   ),
                 ),
-              ),
-
-              const SizedBox(height: 8),
-
-              // Lives + hints
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // Hearts
-                    Row(
-                      children: List.generate(3, (i) {
-                        return Padding(
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: totalArrows == 0 ? 0 : gameState.currentStreak / totalArrows,
+                      backgroundColor: fg.withAlpha(25),
+                      valueColor: AlwaysStoppedAnimation<Color>(fg.withAlpha(153)),
+                      minHeight: 3,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: List.generate(3, (i) => Padding(
                           padding: const EdgeInsets.only(right: 6),
                           child: Icon(
-                            i < gameState.lives
-                                ? Icons.favorite
-                                : Icons.favorite_border,
+                            i < gameState.lives ? Icons.favorite : Icons.favorite_border,
                             color: i < gameState.lives
                                 ? Colors.red.shade400
-                                : fg.withOpacity(0.3),
+                                : fg.withAlpha(76),
                             size: 22,
                           ),
-                        );
-                      }),
-                    ),
-
-                    // Hint button
-                    GestureDetector(
-                      onTap: gameState.hintsLeft > 0 ? onHintPressed : null,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          border: Border.all(
-                            color: gameState.hintsLeft > 0
-                                ? fg.withOpacity(0.5)
-                                : fg.withOpacity(0.15),
-                          ),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.lightbulb_outline,
-                              color: gameState.hintsLeft > 0
-                                  ? fg
-                                  : fg.withOpacity(0.3),
-                              size: 16,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              '${gameState.hintsLeft}',
-                              style: TextStyle(
+                        )),
+                      ),
+                      GestureDetector(
+                        onTap: gameState.hintsLeft > 0 ? onHintPressed : null,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            border: Border.all(
                                 color: gameState.hintsLeft > 0
-                                    ? fg
-                                    : fg.withOpacity(0.3),
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
+                                    ? fg.withAlpha(128)
+                                    : fg.withAlpha(38)),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.lightbulb_outline,
+                                  color: gameState.hintsLeft > 0
+                                      ? fg : fg.withAlpha(76),
+                                  size: 16),
+                              const SizedBox(width: 4),
+                              Text('${gameState.hintsLeft}',
+                                  style: TextStyle(
+                                      color: gameState.hintsLeft > 0
+                                          ? fg : fg.withAlpha(76),
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold)),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 8),
+              ],
+            ),
           ),
         );
       },
@@ -171,12 +139,9 @@ class HudWidget extends StatelessWidget {
 
   String _difficultyLabel() {
     switch (gameState.currentDifficulty) {
-      case DifficultyType.easy:
-        return 'EASY';
-      case DifficultyType.hard:
-        return 'HARD';
-      case DifficultyType.nightmare:
-        return 'NIGHTMARE';
+      case DifficultyType.easy: return 'EASY';
+      case DifficultyType.hard: return 'HARD';
+      case DifficultyType.nightmare: return 'NIGHTMARE';
     }
   }
 }

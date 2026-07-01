@@ -5,12 +5,7 @@ import '../core/game_state.dart';
 class LevelCompleteScreen extends StatefulWidget {
   final GameState gameState;
   final VoidCallback onNext;
-
-  const LevelCompleteScreen({
-    super.key,
-    required this.gameState,
-    required this.onNext,
-  });
+  const LevelCompleteScreen({super.key, required this.gameState, required this.onNext});
 
   @override
   State<LevelCompleteScreen> createState() => _LevelCompleteScreenState();
@@ -27,41 +22,25 @@ class _LevelCompleteScreenState extends State<LevelCompleteScreen>
   @override
   void initState() {
     super.initState();
-
     _smokeController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2000),
-    );
-
+        vsync: this, duration: const Duration(milliseconds: 2200))..forward();
     _fadeController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 500),
-    );
-
+        vsync: this, duration: const Duration(milliseconds: 400))..forward();
     _fadeIn = CurvedAnimation(parent: _fadeController, curve: Curves.easeIn);
-
     _generateParticles();
-    _smokeController.forward();
-    _fadeController.forward();
   }
 
   void _generateParticles() {
-    final size = WidgetsBinding.instance.platformDispatcher.views.first.physicalSize /
-        WidgetsBinding.instance.platformDispatcher.views.first.devicePixelRatio;
-
-    for (int i = 0; i < 60; i++) {
+    for (int i = 0; i < 70; i++) {
       final fromLeft = _random.nextBool();
       _particles.add(_SmokeParticle(
-        x: fromLeft
-            ? _random.nextDouble() * 80
-            : size.width - _random.nextDouble() * 80,
-        startY: size.height,
-        speedX: (fromLeft ? 1 : -1) *
-            (_random.nextDouble() * 2 + 0.5),
-        speedY: -(_random.nextDouble() * 4 + 2),
-        size: _random.nextDouble() * 30 + 10,
-        opacity: _random.nextDouble() * 0.6 + 0.2,
-        delay: _random.nextDouble() * 0.5,
+        x: fromLeft ? _random.nextDouble() * 100 : 1.0 - _random.nextDouble() * 0.2,
+        speedX: (fromLeft ? 1 : -1) * (_random.nextDouble() * 1.5 + 0.5),
+        speedY: -(_random.nextDouble() * 5 + 2),
+        size: _random.nextDouble() * 28 + 8,
+        opacity: _random.nextDouble() * 0.5 + 0.2,
+        delay: _random.nextDouble() * 0.4,
+        fromLeft: fromLeft,
       ));
     }
   }
@@ -77,9 +56,10 @@ class _LevelCompleteScreenState extends State<LevelCompleteScreen>
   Widget build(BuildContext context) {
     final isDark = widget.gameState.isDarkTheme;
     final bg = isDark
-        ? const Color(0xFF0D0D1A).withOpacity(0.95)
-        : const Color(0xFFF5F5F5).withOpacity(0.95);
+        ? const Color(0xFF0D0D1A).withAlpha(242)
+        : const Color(0xFFF5F5F5).withAlpha(242);
     final fg = isDark ? Colors.white : Colors.black;
+    final screenSize = MediaQuery.of(context).size;
 
     return FadeTransition(
       opacity: _fadeIn,
@@ -87,72 +67,43 @@ class _LevelCompleteScreenState extends State<LevelCompleteScreen>
         color: bg,
         child: Stack(
           children: [
-            // Smoke particles
             AnimatedBuilder(
               animation: _smokeController,
-              builder: (context, _) {
-                return CustomPaint(
-                  painter: _SmokePainter(
+              builder: (context, _) => CustomPaint(
+                painter: _SmokePainter(
                     particles: _particles,
                     progress: _smokeController.value,
                     isDark: isDark,
-                  ),
-                  size: Size.infinite,
-                );
-              },
+                    screenSize: screenSize),
+                size: Size.infinite,
+              ),
             ),
-
-            // Content
             Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(
-                    '✓',
-                    style: TextStyle(
-                      color: fg,
-                      fontSize: 72,
-                      fontWeight: FontWeight.w100,
-                    ),
-                  ),
+                  Text('✓',
+                      style: TextStyle(color: fg, fontSize: 80, fontWeight: FontWeight.w100)),
                   const SizedBox(height: 16),
-                  Text(
-                    'LEVEL COMPLETE',
-                    style: TextStyle(
-                      color: fg,
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 4,
-                    ),
-                  ),
+                  Text('LEVEL COMPLETE',
+                      style: TextStyle(
+                          color: fg, fontSize: 26,
+                          fontWeight: FontWeight.bold, letterSpacing: 4)),
                   const SizedBox(height: 8),
-                  Text(
-                    'Level ${widget.gameState.currentLevel}',
-                    style: TextStyle(
-                      color: fg.withOpacity(0.5),
-                      fontSize: 14,
-                      letterSpacing: 2,
-                    ),
-                  ),
+                  Text('Level ${widget.gameState.currentLevel}',
+                      style: TextStyle(color: fg.withAlpha(128), fontSize: 14, letterSpacing: 2)),
                   const SizedBox(height: 48),
                   GestureDetector(
                     onTap: widget.onNext,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 48, vertical: 16),
+                      padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 16),
                       decoration: BoxDecoration(
-                        border: Border.all(color: fg.withOpacity(0.5)),
-                        borderRadius: BorderRadius.circular(40),
-                      ),
-                      child: Text(
-                        'NEXT LEVEL',
-                        style: TextStyle(
-                          color: fg,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 3,
-                        ),
-                      ),
+                          border: Border.all(color: fg.withAlpha(128)),
+                          borderRadius: BorderRadius.circular(40)),
+                      child: Text('NEXT LEVEL',
+                          style: TextStyle(
+                              color: fg, fontSize: 16,
+                              fontWeight: FontWeight.bold, letterSpacing: 3)),
                     ),
                   ),
                 ],
@@ -166,22 +117,12 @@ class _LevelCompleteScreenState extends State<LevelCompleteScreen>
 }
 
 class _SmokeParticle {
-  final double x;
-  final double startY;
-  final double speedX;
-  final double speedY;
-  final double size;
-  final double opacity;
-  final double delay;
-
+  final double x, speedX, speedY, size, opacity, delay;
+  final bool fromLeft;
   _SmokeParticle({
-    required this.x,
-    required this.startY,
-    required this.speedX,
-    required this.speedY,
-    required this.size,
-    required this.opacity,
-    required this.delay,
+    required this.x, required this.speedX, required this.speedY,
+    required this.size, required this.opacity, required this.delay,
+    required this.fromLeft,
   });
 }
 
@@ -189,29 +130,26 @@ class _SmokePainter extends CustomPainter {
   final List<_SmokeParticle> particles;
   final double progress;
   final bool isDark;
+  final Size screenSize;
 
-  _SmokePainter({
-    required this.particles,
-    required this.progress,
-    required this.isDark,
-  });
+  _SmokePainter({required this.particles, required this.progress,
+      required this.isDark, required this.screenSize});
 
   @override
   void paint(Canvas canvas, Size size) {
     for (final p in particles) {
       final t = (progress - p.delay).clamp(0.0, 1.0);
       if (t <= 0) continue;
-
-      final x = p.x + p.speedX * t * 100;
-      final y = p.startY + p.speedY * t * 200;
-      final fade = t < 0.7 ? t / 0.7 : (1.0 - t) / 0.3;
-
+      final x = p.fromLeft
+          ? p.x + p.speedX * t * 80
+          : size.width * p.x - p.speedX * t * 80;
+      final y = size.height - t * p.speedY * -40;
+      final fade = t < 0.6 ? t / 0.6 : (1.0 - t) / 0.4;
       final paint = Paint()
         ..color = (isDark ? Colors.white : Colors.black)
-            .withOpacity(p.opacity * fade * 0.5)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12);
-
-      canvas.drawCircle(Offset(x, y), p.size * (0.5 + t * 0.5), paint);
+            .withAlpha((p.opacity * fade * 0.6 * 255).toInt())
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
+      canvas.drawCircle(Offset(x, y), p.size * (0.4 + t * 0.6), paint);
     }
   }
 

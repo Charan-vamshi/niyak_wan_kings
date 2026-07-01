@@ -7,18 +7,25 @@ class LevelData {
   final int rows;
   final int cols;
 
-  LevelData({
-    required this.arrows,
-    required this.rows,
-    required this.cols,
-  });
+  LevelData({required this.arrows, required this.rows, required this.cols});
+
+  Map<String, int> buildOccupiedMap() {
+    final map = <String, int>{};
+    for (final arrow in arrows) {
+      if (arrow.state == ArrowState.extracted) continue;
+      for (final cell in arrow.cells) {
+        map[cell.toString()] = arrow.id;
+      }
+    }
+    return map;
+  }
 }
 
 class LevelGenerator {
   static LevelData generate(int level) {
     final difficulty = getDifficulty(level);
     final config = LevelConfig.fromDifficulty(difficulty, level);
-    final random = Random(level * 9999);
+    final random = Random(level * 13337);
 
     final int rows = config.gridRows;
     final int cols = config.gridCols;
@@ -27,27 +34,21 @@ class LevelGenerator {
     final List<ArrowModel> arrows = [];
     int id = 0;
 
-    int attempts = 0;
-    while (arrows.length < config.arrowCount && attempts < 10000) {
-      attempts++;
+    int totalAttempts = 0;
 
-      // pick random head cell
+    while (arrows.length < config.arrowCount && totalAttempts < 50000) {
+      totalAttempts++;
+
       final headRow = random.nextInt(rows);
       final headCol = random.nextInt(cols);
       final headKey = '${headRow}_$headCol';
       if (occupiedMap.containsKey(headKey)) continue;
 
-      // pick random direction
-      final direction =
-          ArrowDirection.values[random.nextInt(ArrowDirection.values.length)];
+      final direction = ArrowDirection.values[random.nextInt(4)];
 
-      // exit path from head must be completely clear
-      if (!_isExitClear(headRow, headCol, direction, occupiedMap, rows, cols)) {
-        continue;
-      }
+      if (!_isExitPathClear(headRow, headCol, direction, occupiedMap, rows, cols)) continue;
 
-      // grow tail from head (tail grows in any direction except exit direction)
-      final cells = _growTail(
+      final cells = _buildSnake(
         headRow: headRow,
         headCol: headCol,
         direction: direction,
@@ -55,64 +56,41 @@ class LevelGenerator {
         rows: rows,
         cols: cols,
         random: random,
-        minLength: config.minArrowLength,
-        maxLength: config.maxArrowLength,
+        minLen: config.minArrowLength,
+        maxLen: config.maxArrowLength,
       );
 
-      if (cells.isEmpty) continue;
+      if (cells.length < config.minArrowLength) continue;
 
-      // mark all cells
       for (final cell in cells) {
         occupiedMap[cell.toString()] = id;
       }
 
-      arrows.add(ArrowModel(
-        id: id++,
-        cells: cells,
-        direction: direction,
-      ));
+      arrows.add(ArrowModel(id: id++, cells: cells, direction: direction));
     }
 
-    return LevelData(
-      arrows: arrows,
-      rows: rows,
-      cols: cols,
-    );
+    return LevelData(arrows: arrows, rows: rows, cols: cols);
   }
 
-  static bool _isExitClear(
-    int row,
-    int col,
-    ArrowDirection direction,
-    Map<String, int> occupiedMap,
-    int rows,
-    int cols,
+  static bool _isExitPathClear(
+    int row, int col, ArrowDirection dir,
+    Map<String, int> occupied, int rows, int cols,
   ) {
     int r = row;
     int c = col;
-
     while (true) {
-      switch (direction) {
-        case ArrowDirection.up:
-          r--;
-          break;
-        case ArrowDirection.down:
-          r++;
-          break;
-        case ArrowDirection.left:
-          c--;
-          break;
-        case ArrowDirection.right:
-          c++;
-          break;
+      switch (dir) {
+        case ArrowDirection.up:    r--; break;
+        case ArrowDirection.down:  r++; break;
+        case ArrowDirection.left:  c--; break;
+        case ArrowDirection.right: c++; break;
       }
-
       if (r < 0 || r >= rows || c < 0 || c >= cols) return true;
-      if (occupiedMap.containsKey('${r}_$c')) return false;
+      if (occupied.containsKey('${r}_$c')) return false;
     }
   }
 
-  static List<GridPosition> _growTail({
+  static List<GridPosition> _buildSnake({
     required int headRow,
     required int headCol,
     required ArrowDirection direction,
@@ -120,36 +98,31 @@ class LevelGenerator {
     required int rows,
     required int cols,
     required Random random,
-    required int minLength,
-    required int maxLength,
+    required int minLen,
+    required int maxLen,
   }) {
-    // cells[0] = head
     final cells = <GridPosition>[GridPosition(headRow, headCol)];
-    final targetLength =
-        minLength + random.nextInt(maxLength - minLength + 1);
+    final target = minLen + random.nextInt(maxLen - minLen + 1);
 
     int attempts = 0;
-    while (cells.length < targetLength && attempts < 100) {
+    while (cells.length < target && attempts < 200) {
       attempts++;
       final current = cells.last;
+      final candidates = <GridPosition>[];
 
-      final neighbors = <GridPosition>[];
       for (final dir in ArrowDirection.values) {
-        // never grow in exit direction — that would block the head
         if (dir == direction) continue;
-
         final next = current.shift(dir);
         if (next.row < 0 || next.row >= rows) continue;
         if (next.col < 0 || next.col >= cols) continue;
         if (occupiedMap.containsKey(next.toString())) continue;
         if (cells.contains(next)) continue;
-
-        neighbors.add(next);
+        candidates.add(next);
       }
 
-      if (neighbors.isEmpty) break;
-      neighbors.shuffle(random);
-      cells.add(neighbors.first);
+      if (candidates.isEmpty) break;
+      candidates.shuffle(random);
+      cells.add(candidates.first);
     }
 
     return cells;
