@@ -21,57 +21,12 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   bool _showLevelComplete = false;
   bool _showGameOver = false;
 
-  late AnimationController _extractController;
-  late AnimationController _wiggleController;
-  ArrowModel? _animatingArrow;
+  final Set<AnimationController> _activeControllers = {};
 
   @override
   void initState() {
     super.initState();
     widget.gameState.resetLevelState();
-    
-    _extractController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 300),
-    );
-    _wiggleController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 300),
-    );
-
-    _extractController.addListener(() {
-      if (_animatingArrow != null) {
-        // Apply ease-out curve for extraction
-        final curve = Curves.easeOutCubic.transform(_extractController.value);
-        _animatingArrow!.animOffset = curve;
-        setState(() {}); // trigger rebuild for painter
-      }
-    });
-
-    _wiggleController.addListener(() {
-      if (_animatingArrow != null) {
-        // Quick back and forth wiggle
-        final t = _wiggleController.value;
-        _animatingArrow!.animOffset = sin(t * pi * 3) * 0.15; // wiggle intensity
-        setState(() {});
-      }
-    });
-
-    _extractController.addStatusListener((status) {
-      if (status == AnimationStatus.completed && _animatingArrow != null) {
-        _controller.onExtractionComplete(_animatingArrow!);
-        _animatingArrow = null;
-      }
-    });
-
-    _wiggleController.addStatusListener((status) {
-      if (status == AnimationStatus.completed && _animatingArrow != null) {
-        _animatingArrow!.animOffset = 0;
-        _controller.onCollisionComplete(_animatingArrow!);
-        _animatingArrow = null;
-      }
-    });
-
     _initController();
   }
 
@@ -85,46 +40,96 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   }
 
   void _onGameControllerUpdated() {
-    // Check if an arrow just started moving or colliding
-    for (final arrow in _controller.levelData.arrows) {
-      if (arrow.state == ArrowState.moving && _animatingArrow != arrow) {
-        _animatingArrow = arrow;
-        _extractController.forward(from: 0.0);
-        break;
-      } else if (arrow.state == ArrowState.collided && _animatingArrow != arrow) {
-        _animatingArrow = arrow;
-        _wiggleController.forward(from: 0.0);
-        break;
-      }
-    }
     setState(() {});
   }
 
   @override
   void dispose() {
     _controller.dispose();
-    _extractController.dispose();
-    _wiggleController.dispose();
+    for (final controller in _activeControllers) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
   void _onTapDown(TapDownDetails details, double scale, Offset offset) {
-    if (_controller.isAnimating) return;
-
     // Convert local tap position to grid coordinates based on the FittedBox scale
     final localTap = details.localPosition;
     
     final col = (localTap.dx / ArrowPainter.cellSize).floor();
     final row = (localTap.dy / ArrowPainter.cellSize).floor();
 
+    ArrowModel? targetArrow;
     for (final arrow in _controller.levelData.arrows) {
       if (arrow.state == ArrowState.extracted) continue;
       for (final cell in arrow.cells) {
         if (cell.row == row && cell.col == col) {
-          _controller.onArrowTapped(arrow);
-          return;
+          targetArrow = arrow;
+          break;
         }
       }
+      if (targetArrow != null) break;
+    }
+
+    if (targetArrow == null) return;
+
+    final result = _controller.onArrowTapped(targetArrow);
+
+    if (result == TapResult.extracted) {
+      final controller = AnimationController(
+        vsync: this,
+        duration: const Duration(milliseconds: 1800), // Slower, relaxed speed
+      );
+      _activeControllers.add(controller);
+      
+      final curve = CurvedAnimation(parent: controller, curve: Curves.easeOutCubic);
+      
+      controller.addListener(() {
+        setState(() {
+          targetArrow!.animOffset = curve.value;
+        });
+      });
+      
+      controller.forward().then((_) {
+        if (mounted) {
+          _controller.onExtractionComplete(targetArrow!);
+        }
+        controller.dispose();
+        _activeControllers.remove(controller);
+      });
+      
+    } else if (result == TapResult.collided) {
+      _startWiggle(targetArrow);
+    }
+  }
+
+  void _startWiggle(ArrowModel targetArrow) {
+    final controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+    _activeControllers.add(controller);
+    
+    controller.addListener(() {
+      setState(() {
+        targetArrow.animOffset = sin(controller.value * pi * 3) * 0.1;
+      });
+    });
+    
+    controller.forward().then((_) {
+      if (mounted) {
+        _controller.onCollisionComplete(targetArrow);
+        targetArrow.animOffset = 0;
+      }
+      controller.dispose();
+      _activeControllers.remove(controller);
+    });
+  }
+
+  void _onHintPressed() {
+    final targetArrow = _controller.useHint();
+    if (targetArrow != null) {
+      _startWiggle(targetArrow);
     }
   }
 
@@ -173,7 +178,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
             child: HudWidget(
               gameState: widget.gameState,
               totalArrows: _controller.levelData.arrows.length,
-              onHintPressed: _controller.useHint,
+              onHintPressed: _onHintPressed,
               onExitPressed: _onExitPressed,
             ),
           ),

@@ -4,13 +4,14 @@ import '../core/arrow_model.dart';
 import '../core/game_state.dart';
 import 'level_generator.dart';
 
+enum TapResult { extracted, collided, invalid, hint }
+
 class GameController extends ChangeNotifier {
   final GameState gameState;
   final VoidCallback onLevelComplete;
   final VoidCallback onGameOver;
 
   late LevelData levelData;
-  bool isAnimating = false; // True if any arrow is currently animating
 
   GameController({
     required this.gameState,
@@ -22,7 +23,6 @@ class GameController extends ChangeNotifier {
 
   void _loadLevel() {
     levelData = LevelGenerator.generate(gameState.currentLevel);
-    isAnimating = false;
     notifyListeners();
   }
 
@@ -32,40 +32,25 @@ class GameController extends ChangeNotifier {
 
   Map<String, int> get occupiedMap => levelData.buildOccupiedMap();
 
-  void onArrowTapped(ArrowModel arrow) {
-    if (isAnimating) return;
-    if (arrow.state != ArrowState.idle) return;
+  TapResult onArrowTapped(ArrowModel arrow) {
+    if (arrow.state != ArrowState.idle) return TapResult.invalid;
 
-    final occupied = occupiedMap;
-
-    if (arrow.canExit(occupied, levelData.rows, levelData.cols)) {
-      _extractArrow(arrow);
+    if (arrow.canExit(occupiedMap, levelData.rows, levelData.cols)) {
+      arrow.state = ArrowState.moving;
+      gameState.onCorrectTap();
+      notifyListeners();
+      return TapResult.extracted;
     } else {
-      _wrongTap(arrow);
+      arrow.state = ArrowState.collided;
+      gameState.onWrongTap();
+      notifyListeners();
+      return TapResult.collided;
     }
   }
 
-  void _extractArrow(ArrowModel arrow) {
-    isAnimating = true;
-    arrow.state = ArrowState.moving;
-    // Animation logic is now handled by GameScreen UI using AnimationController
-    notifyListeners();
-  }
-
-  void _wrongTap(ArrowModel arrow) {
-    isAnimating = true;
-    arrow.state = ArrowState.collided;
-    gameState.onWrongTap();
-    // Animation logic is now handled by GameScreen UI using AnimationController
-    notifyListeners();
-  }
-
-  // Called by GameScreen when an arrow's extraction animation finishes
   void onExtractionComplete(ArrowModel arrow) {
     arrow.state = ArrowState.extracted;
-    isAnimating = false;
-    gameState.onCorrectTap();
-
+    
     final remaining = levelData.arrows
         .where((a) => a.state != ArrowState.extracted)
         .toList();
@@ -76,31 +61,27 @@ class GameController extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Called by GameScreen when an arrow's collision wiggle animation finishes
   void onCollisionComplete(ArrowModel arrow) {
     arrow.state = ArrowState.idle;
-    isAnimating = false;
-    notifyListeners();
     
     if (gameState.isGameOver) {
       Future.delayed(const Duration(milliseconds: 200), onGameOver);
     }
+    notifyListeners();
   }
 
-  void useHint() {
-    if (gameState.hintsLeft <= 0 || isAnimating) return;
-    final occupied = occupiedMap;
+  ArrowModel? useHint() {
+    if (gameState.hintsLeft <= 0) return null;
+    
     for (final arrow in levelData.arrows) {
       if (arrow.state != ArrowState.idle) continue;
-      if (arrow.canExit(occupied, levelData.rows, levelData.cols)) {
+      if (arrow.canExit(occupiedMap, levelData.rows, levelData.cols)) {
         gameState.useHint();
-        // Just trigger a quick visual bump or highlight in a real game,
-        // for now we use the collided state to wiggle it as a hint.
-        arrow.state = ArrowState.collided;
-        isAnimating = true;
+        arrow.state = ArrowState.collided; // Use wiggle for hint
         notifyListeners();
-        break;
+        return arrow;
       }
     }
+    return null;
   }
 }

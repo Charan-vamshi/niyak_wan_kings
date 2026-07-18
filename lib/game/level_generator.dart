@@ -12,7 +12,8 @@ class LevelData {
   Map<String, int> buildOccupiedMap() {
     final map = <String, int>{};
     for (final arrow in arrows) {
-      if (arrow.state == ArrowState.extracted) continue;
+      // Ignore extracted arrows AND moving arrows (they instantly free up their space)
+      if (arrow.state == ArrowState.extracted || arrow.state == ArrowState.moving) continue;
       for (final cell in arrow.cells) {
         map[cell.toString()] = arrow.id;
       }
@@ -104,6 +105,27 @@ class LevelGenerator {
     final cells = <GridPosition>[GridPosition(headRow, headCol)];
     final target = minLen + random.nextInt(maxLen - minLen + 1);
 
+    // FIX: The first block behind the head (the neck) MUST be in the exact opposite direction 
+    // of the exit. This prevents the head from taking a sharp 90-degree turn without a straight body.
+    GridPosition firstNeck;
+    switch (direction) {
+      case ArrowDirection.up:    firstNeck = GridPosition(headRow + 1, headCol); break;
+      case ArrowDirection.down:  firstNeck = GridPosition(headRow - 1, headCol); break;
+      case ArrowDirection.left:  firstNeck = GridPosition(headRow, headCol + 1); break;
+      case ArrowDirection.right: firstNeck = GridPosition(headRow, headCol - 1); break;
+    }
+
+    // Check if the mandatory neck position is valid and empty
+    if (firstNeck.row >= 0 && firstNeck.row < rows && 
+        firstNeck.col >= 0 && firstNeck.col < cols && 
+        !occupiedMap.containsKey(firstNeck.toString())) {
+      cells.add(firstNeck);
+    } else {
+      // If we can't place the mandatory straight neck, this spawn is invalid.
+      // Return early. The caller will discard it because cells.length < minLen.
+      return cells; 
+    }
+
     int attempts = 0;
     while (cells.length < target && attempts < 200) {
       attempts++;
@@ -111,7 +133,7 @@ class LevelGenerator {
       final candidates = <GridPosition>[];
 
       for (final dir in ArrowDirection.values) {
-        if (dir == direction) continue;
+        if (dir == direction) continue; // Don't grow tail towards the exit direction
         final next = current.shift(dir);
         if (next.row < 0 || next.row >= rows) continue;
         if (next.col < 0 || next.col >= cols) continue;
