@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import '../core/game_state.dart';
 import '../core/arrow_model.dart';
@@ -15,16 +16,62 @@ class GameScreen extends StatefulWidget {
   State<GameScreen> createState() => _GameScreenState();
 }
 
-class _GameScreenState extends State<GameScreen> {
+class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   late GameController _controller;
   bool _showLevelComplete = false;
   bool _showGameOver = false;
-  final TransformationController _transformController = TransformationController();
+
+  late AnimationController _extractController;
+  late AnimationController _wiggleController;
+  ArrowModel? _animatingArrow;
 
   @override
   void initState() {
     super.initState();
     widget.gameState.resetLevelState();
+    
+    _extractController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+    _wiggleController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+
+    _extractController.addListener(() {
+      if (_animatingArrow != null) {
+        // Apply ease-out curve for extraction
+        final curve = Curves.easeOutCubic.transform(_extractController.value);
+        _animatingArrow!.animOffset = curve;
+        setState(() {}); // trigger rebuild for painter
+      }
+    });
+
+    _wiggleController.addListener(() {
+      if (_animatingArrow != null) {
+        // Quick back and forth wiggle
+        final t = _wiggleController.value;
+        _animatingArrow!.animOffset = sin(t * pi * 3) * 0.15; // wiggle intensity
+        setState(() {});
+      }
+    });
+
+    _extractController.addStatusListener((status) {
+      if (status == AnimationStatus.completed && _animatingArrow != null) {
+        _controller.onExtractionComplete(_animatingArrow!);
+        _animatingArrow = null;
+      }
+    });
+
+    _wiggleController.addStatusListener((status) {
+      if (status == AnimationStatus.completed && _animatingArrow != null) {
+        _animatingArrow!.animOffset = 0;
+        _controller.onCollisionComplete(_animatingArrow!);
+        _animatingArrow = null;
+      }
+    });
+
     _initController();
   }
 
@@ -34,27 +81,41 @@ class _GameScreenState extends State<GameScreen> {
       onLevelComplete: () => setState(() => _showLevelComplete = true),
       onGameOver: () => setState(() => _showGameOver = true),
     );
-    _controller.addListener(() => setState(() {}));
+    _controller.addListener(_onGameControllerUpdated);
+  }
+
+  void _onGameControllerUpdated() {
+    // Check if an arrow just started moving or colliding
+    for (final arrow in _controller.levelData.arrows) {
+      if (arrow.state == ArrowState.moving && _animatingArrow != arrow) {
+        _animatingArrow = arrow;
+        _extractController.forward(from: 0.0);
+        break;
+      } else if (arrow.state == ArrowState.collided && _animatingArrow != arrow) {
+        _animatingArrow = arrow;
+        _wiggleController.forward(from: 0.0);
+        break;
+      }
+    }
+    setState(() {});
   }
 
   @override
   void dispose() {
     _controller.dispose();
-    _transformController.dispose();
+    _extractController.dispose();
+    _wiggleController.dispose();
     super.dispose();
   }
 
-  void _onTapDown(TapDownDetails details) {
+  void _onTapDown(TapDownDetails details, double scale, Offset offset) {
     if (_controller.isAnimating) return;
 
-    final matrix = _transformController.value;
-    final scale = matrix.getMaxScaleOnAxis();
-    final translated = details.localPosition;
-    final worldX = (translated.dx - matrix.getTranslation().x) / scale;
-    final worldY = (translated.dy - matrix.getTranslation().y) / scale;
-
-    final col = (worldX / ArrowPainter.cellSize).floor();
-    final row = (worldY / ArrowPainter.cellSize).floor();
+    // Convert local tap position to grid coordinates based on the FittedBox scale
+    final localTap = details.localPosition;
+    
+    final col = (localTap.dx / ArrowPainter.cellSize).floor();
+    final row = (localTap.dy / ArrowPainter.cellSize).floor();
 
     for (final arrow in _controller.levelData.arrows) {
       if (arrow.state == ArrowState.extracted) continue;
@@ -70,7 +131,8 @@ class _GameScreenState extends State<GameScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = widget.gameState.isDarkTheme;
-    final bg = isDark ? const Color(0xFF0D0D1A) : const Color(0xFFF5F5F5);
+    final bg = isDark ? const Color(0xFF121212) : const Color(0xFFFAFAFA);
+    
     final gridW = _controller.levelData.cols * ArrowPainter.cellSize;
     final gridH = _controller.levelData.rows * ArrowPainter.cellSize;
 
@@ -78,22 +140,28 @@ class _GameScreenState extends State<GameScreen> {
       backgroundColor: bg,
       body: Stack(
         children: [
-          GestureDetector(
-            onTapDown: _onTapDown,
-            child: InteractiveViewer(
-              transformationController: _transformController,
-              minScale: 0.3,
-              maxScale: 3.0,
-              boundaryMargin: const EdgeInsets.all(200),
-              child: Container(
-                color: bg,
-                width: gridW,
-                height: gridH,
-                child: CustomPaint(
-                  size: Size(gridW, gridH),
-                  painter: ArrowPainter(
-                    arrows: _controller.levelData.arrows,
-                    isDark: isDark,
+          SafeArea(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 80, bottom: 40, left: 16, right: 16),
+                child: FittedBox(
+                  fit: BoxFit.contain,
+                  child: GestureDetector(
+                    onTapDown: (details) => _onTapDown(details, 1.0, Offset.zero),
+                    child: Container(
+                      color: Colors.transparent, // Ensure gesture detector captures taps
+                      width: gridW,
+                      height: gridH,
+                      child: CustomPaint(
+                        size: Size(gridW, gridH),
+                        painter: ArrowPainter(
+                          arrows: _controller.levelData.arrows,
+                          isDark: isDark,
+                          rows: _controller.levelData.rows,
+                          cols: _controller.levelData.cols,
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -144,7 +212,7 @@ class _GameScreenState extends State<GameScreen> {
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: widget.gameState.isDarkTheme
-            ? const Color(0xFF1A1A2E)
+            ? const Color(0xFF1E1E1E)
             : Colors.white,
         title: Text('Exit Level?',
             style: TextStyle(

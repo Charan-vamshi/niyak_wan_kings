@@ -10,7 +10,7 @@ class GameController extends ChangeNotifier {
   final VoidCallback onGameOver;
 
   late LevelData levelData;
-  bool isAnimating = false;
+  bool isAnimating = false; // True if any arrow is currently animating
 
   GameController({
     required this.gameState,
@@ -48,64 +48,57 @@ class GameController extends ChangeNotifier {
   void _extractArrow(ArrowModel arrow) {
     isAnimating = true;
     arrow.state = ArrowState.moving;
+    // Animation logic is now handled by GameScreen UI using AnimationController
     notifyListeners();
-
-    const stepDuration = Duration(milliseconds: 60);
-    final totalSteps = arrow.cells.length + levelData.rows + levelData.cols;
-    int step = 0;
-
-    Timer.periodic(stepDuration, (timer) {
-      step++;
-      arrow.animOffset = step.toDouble();
-
-      if (step >= totalSteps) {
-        timer.cancel();
-        arrow.state = ArrowState.extracted;
-        isAnimating = false;
-        gameState.onCorrectTap();
-
-        final remaining = levelData.arrows
-            .where((a) => a.state != ArrowState.extracted)
-            .toList();
-
-        if (remaining.isEmpty) {
-          Future.delayed(const Duration(milliseconds: 200), onLevelComplete);
-        }
-        notifyListeners();
-        return;
-      }
-
-      notifyListeners();
-    });
   }
 
   void _wrongTap(ArrowModel arrow) {
+    isAnimating = true;
     arrow.state = ArrowState.collided;
     gameState.onWrongTap();
+    // Animation logic is now handled by GameScreen UI using AnimationController
     notifyListeners();
+  }
 
-    Future.delayed(const Duration(milliseconds: 500), () {
-      arrow.state = ArrowState.idle;
-      notifyListeners();
-      if (gameState.isGameOver) {
-        Future.delayed(const Duration(milliseconds: 200), onGameOver);
-      }
-    });
+  // Called by GameScreen when an arrow's extraction animation finishes
+  void onExtractionComplete(ArrowModel arrow) {
+    arrow.state = ArrowState.extracted;
+    isAnimating = false;
+    gameState.onCorrectTap();
+
+    final remaining = levelData.arrows
+        .where((a) => a.state != ArrowState.extracted)
+        .toList();
+
+    if (remaining.isEmpty) {
+      Future.delayed(const Duration(milliseconds: 200), onLevelComplete);
+    }
+    notifyListeners();
+  }
+
+  // Called by GameScreen when an arrow's collision wiggle animation finishes
+  void onCollisionComplete(ArrowModel arrow) {
+    arrow.state = ArrowState.idle;
+    isAnimating = false;
+    notifyListeners();
+    
+    if (gameState.isGameOver) {
+      Future.delayed(const Duration(milliseconds: 200), onGameOver);
+    }
   }
 
   void useHint() {
-    if (gameState.hintsLeft <= 0) return;
+    if (gameState.hintsLeft <= 0 || isAnimating) return;
     final occupied = occupiedMap;
     for (final arrow in levelData.arrows) {
       if (arrow.state != ArrowState.idle) continue;
       if (arrow.canExit(occupied, levelData.rows, levelData.cols)) {
         gameState.useHint();
+        // Just trigger a quick visual bump or highlight in a real game,
+        // for now we use the collided state to wiggle it as a hint.
         arrow.state = ArrowState.collided;
+        isAnimating = true;
         notifyListeners();
-        Future.delayed(const Duration(milliseconds: 800), () {
-          arrow.state = ArrowState.idle;
-          notifyListeners();
-        });
         break;
       }
     }
