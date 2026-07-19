@@ -8,6 +8,7 @@ class ArrowPainter extends CustomPainter {
   final bool isDark;
   final int rows;
   final int cols;
+  final bool showGuideLines;
   static const double cellSize = 48.0;
 
   ArrowPainter({
@@ -15,10 +16,49 @@ class ArrowPainter extends CustomPainter {
     required this.isDark,
     required this.rows,
     required this.cols,
+    this.showGuideLines = false,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
+    // 0. Draw Guide Lines (Tangents) if enabled
+    if (showGuideLines) {
+      final linePaint = Paint()
+        ..color = isDark ? Colors.white24 : Colors.black26
+        ..strokeWidth = 1.5
+        ..style = PaintingStyle.stroke;
+        
+      for (final arrow in arrows) {
+        if (arrow.state == ArrowState.extracted) continue;
+        
+        final headCenter = _cellCenter(arrow.head);
+        Offset target = headCenter;
+        
+        switch (arrow.direction) {
+          case ArrowDirection.up:    target = Offset(headCenter.dx, 0); break;
+          case ArrowDirection.down:  target = Offset(headCenter.dx, rows * cellSize); break;
+          case ArrowDirection.left:  target = Offset(0, headCenter.dy); break;
+          case ArrowDirection.right: target = Offset(cols * cellSize, headCenter.dy); break;
+        }
+        
+        // Draw the laser line from the head to the edge of the board
+        canvas.drawLine(headCenter, target, linePaint);
+      }
+    }
+
+    // 1. Draw background dot grid
+    final dotPaint = Paint()
+      ..color = isDark ? Colors.white24 : Colors.black26
+      ..style = PaintingStyle.fill;
+
+    for (int r = 0; r < rows; r++) {
+      for (int c = 0; c < cols; c++) {
+        final center = _cellCenter(GridPosition(r, c));
+        canvas.drawCircle(center, 1.5, dotPaint); // Small dot
+      }
+    }
+
+    // 2. Draw all arrows
     for (final arrow in arrows) {
       if (arrow.state == ArrowState.extracted) continue;
       _drawArrow(canvas, arrow);
@@ -34,18 +74,24 @@ class ArrowPainter extends CustomPainter {
     final tail = arrow.cells.last;
     final tailCenter = _cellCenter(tail);
     
+    final double tailExtDist = cellSize * 0.35; // Stop short of the cell boundary to leave a gap
+
     Offset tailExtension = Offset.zero;
     if (arrow.cells.length == 1) {
       switch (arrow.direction) {
-        case ArrowDirection.up:    tailExtension = const Offset(0, cellSize / 2); break;
-        case ArrowDirection.down:  tailExtension = const Offset(0, -cellSize / 2); break;
-        case ArrowDirection.left:  tailExtension = const Offset(cellSize / 2, 0); break;
-        case ArrowDirection.right: tailExtension = const Offset(-cellSize / 2, 0); break;
+        case ArrowDirection.up:    tailExtension = Offset(0, tailExtDist); break;
+        case ArrowDirection.down:  tailExtension = Offset(0, -tailExtDist); break;
+        case ArrowDirection.left:  tailExtension = Offset(tailExtDist, 0); break;
+        case ArrowDirection.right: tailExtension = Offset(-tailExtDist, 0); break;
       }
     } else {
       final prev = _cellCenter(arrow.cells[arrow.cells.length - 2]);
       final dirVec = tailCenter - prev; 
-      tailExtension = Offset(dirVec.dx / 2, dirVec.dy / 2); // Extend half a cell
+      // dirVec has length cellSize. We want length tailExtDist.
+      tailExtension = Offset(
+        (dirVec.dx / cellSize) * tailExtDist,
+        (dirVec.dy / cellSize) * tailExtDist,
+      );
     }
     
     final extendedTail = tailCenter + tailExtension;
@@ -70,8 +116,8 @@ class ArrowPainter extends CustomPainter {
     path.lineTo(exitTarget.dx, exitTarget.dy);
 
     // 2. Extract the segment based on animOffset
-    // The snake's physical length now includes the tail extension (cellSize / 2)
-    final double snakeLength = (arrow.cells.length - 1) * cellSize + (cellSize / 2);
+    // The snake's physical length now includes the tail extension (tailExtDist)
+    final double snakeLength = (arrow.cells.length - 1) * cellSize + tailExtDist;
     final double currentDistance = arrow.animOffset * maxDist * cellSize;
     
     final metrics = path.computeMetrics().first;

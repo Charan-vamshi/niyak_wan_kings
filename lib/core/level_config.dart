@@ -22,24 +22,24 @@ class LevelConfig {
         return LevelConfig(
           gridRows: 7 + cycle,
           gridCols: 5 + cycle,
-          arrowCount: 6 + cycle * 2,
-          minArrowLength: 3,
+          arrowCount: 9999,
+          minArrowLength: 2,
           maxArrowLength: 8,
         );
       case DifficultyType.hard:
         return LevelConfig(
           gridRows: 14 + cycle,
           gridCols: 10 + cycle,
-          arrowCount: 16 + cycle * 3,
-          minArrowLength: 3,
+          arrowCount: 9999,
+          minArrowLength: 2,
           maxArrowLength: 6,
         );
       case DifficultyType.nightmare:
         return LevelConfig(
           gridRows: 22 + cycle,
           gridCols: 16 + cycle,
-          arrowCount: 30 + cycle * 5,
-          minArrowLength: 3,
+          arrowCount: 9999,
+          minArrowLength: 2,
           maxArrowLength: 5,
         );
     }

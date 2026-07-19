@@ -11,6 +11,7 @@ class GameState extends ChangeNotifier {
   bool _isDarkTheme = true;
   bool _soundEnabled = true;
   bool _hapticsEnabled = true;
+  bool _showGuideLines = false;
 
   int get currentLevel => _currentLevel;
   int get lives => _lives;
@@ -20,6 +21,7 @@ class GameState extends ChangeNotifier {
   bool get isDarkTheme => _isDarkTheme;
   bool get soundEnabled => _soundEnabled;
   bool get hapticsEnabled => _hapticsEnabled;
+  bool get showGuideLines => _showGuideLines;
   bool get isGameOver => _lives <= 0;
   DifficultyType get currentDifficulty => getDifficulty(_currentLevel);
 
@@ -45,6 +47,7 @@ class GameState extends ChangeNotifier {
   void toggleTheme() { _isDarkTheme = !_isDarkTheme; _save(); notifyListeners(); }
   void toggleSound() { _soundEnabled = !_soundEnabled; _save(); notifyListeners(); }
   void toggleHaptics() { _hapticsEnabled = !_hapticsEnabled; _save(); notifyListeners(); }
+  void toggleGuideLines() { _showGuideLines = !_showGuideLines; notifyListeners(); }
 
   void resetLevelState() {
     _lives = 3;

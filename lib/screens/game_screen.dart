@@ -52,7 +52,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     super.dispose();
   }
 
-  void _onTapDown(TapDownDetails details, double scale, Offset offset) {
+  void _onTapUp(TapUpDetails details, double scale, Offset offset) {
     // Convert local tap position to grid coordinates based on the FittedBox scale
     final localTap = details.localPosition;
     
@@ -149,21 +149,28 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
             child: Center(
               child: Padding(
                 padding: const EdgeInsets.only(top: 80, bottom: 40, left: 16, right: 16),
-                child: FittedBox(
-                  fit: BoxFit.contain,
-                  child: GestureDetector(
-                    onTapDown: (details) => _onTapDown(details, 1.0, Offset.zero),
-                    child: Container(
-                      color: Colors.transparent, // Ensure gesture detector captures taps
-                      width: gridW,
-                      height: gridH,
-                      child: CustomPaint(
-                        size: Size(gridW, gridH),
-                        painter: ArrowPainter(
-                          arrows: _controller.levelData.arrows,
-                          isDark: isDark,
-                          rows: _controller.levelData.rows,
-                          cols: _controller.levelData.cols,
+                child: InteractiveViewer(
+                  minScale: 1.0,
+                  maxScale: 5.0,
+                  boundaryMargin: const EdgeInsets.symmetric(horizontal: 120, vertical: 120),
+                  clipBehavior: Clip.none, // Allows zooming to overflow the padding for a premium feel
+                  child: FittedBox(
+                    fit: BoxFit.contain,
+                    child: GestureDetector(
+                      onTapUp: (details) => _onTapUp(details, 1.0, Offset.zero),
+                      child: Container(
+                        color: Colors.transparent, // Ensure gesture detector captures taps
+                        width: gridW,
+                        height: gridH,
+                        child: CustomPaint(
+                          size: Size(gridW, gridH),
+                          painter: ArrowPainter(
+                            arrows: _controller.levelData.arrows,
+                            isDark: isDark,
+                            rows: _controller.levelData.rows,
+                            cols: _controller.levelData.cols,
+                            showGuideLines: widget.gameState.showGuideLines,
+                          ),
                         ),
                       ),
                     ),

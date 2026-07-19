@@ -35,19 +35,27 @@ class LevelGenerator {
     final List<ArrowModel> arrows = [];
     int id = 0;
 
-    int totalAttempts = 0;
+    int failedAttempts = 0;
 
-    while (arrows.length < config.arrowCount && totalAttempts < 50000) {
-      totalAttempts++;
-
+    while (arrows.length < config.arrowCount && failedAttempts < 5000) {
       final headRow = random.nextInt(rows);
       final headCol = random.nextInt(cols);
       final headKey = '${headRow}_$headCol';
-      if (occupiedMap.containsKey(headKey)) continue;
+      if (occupiedMap.containsKey(headKey)) {
+        failedAttempts++;
+        continue;
+      }
 
       final direction = ArrowDirection.values[random.nextInt(4)];
 
-      if (!_isExitPathClear(headRow, headCol, direction, occupiedMap, rows, cols)) continue;
+      if (!_isExitPathClear(headRow, headCol, direction, occupiedMap, rows, cols)) {
+        failedAttempts++;
+        continue;
+      }
+
+      // Standard dense maze packing lengths
+      final currentMinL = 3;
+      final currentMaxL = 10;
 
       final cells = _buildSnake(
         headRow: headRow,
@@ -57,11 +65,17 @@ class LevelGenerator {
         rows: rows,
         cols: cols,
         random: random,
-        minLen: config.minArrowLength,
-        maxLen: config.maxArrowLength,
+        minLen: currentMinL,
+        maxLen: currentMaxL,
       );
 
-      if (cells.length < config.minArrowLength) continue;
+      if (cells.length < currentMinL) {
+        failedAttempts++;
+        continue;
+      }
+
+      // Success! Reset failed attempts.
+      failedAttempts = 0;
 
       for (final cell in cells) {
         occupiedMap[cell.toString()] = id;
@@ -105,24 +119,48 @@ class LevelGenerator {
     final cells = <GridPosition>[GridPosition(headRow, headCol)];
     final target = minLen + random.nextInt(maxLen - minLen + 1);
 
-    // FIX: The first block behind the head (the neck) MUST be in the exact opposite direction 
-    // of the exit. This prevents the head from taking a sharp 90-degree turn without a straight body.
     GridPosition firstNeck;
+    ArrowDirection currentTailDir;
     switch (direction) {
-      case ArrowDirection.up:    firstNeck = GridPosition(headRow + 1, headCol); break;
-      case ArrowDirection.down:  firstNeck = GridPosition(headRow - 1, headCol); break;
-      case ArrowDirection.left:  firstNeck = GridPosition(headRow, headCol + 1); break;
-      case ArrowDirection.right: firstNeck = GridPosition(headRow, headCol - 1); break;
+      case ArrowDirection.up:    
+        firstNeck = GridPosition(headRow + 1, headCol); 
+        currentTailDir = ArrowDirection.down;
+        break;
+      case ArrowDirection.down:  
+        firstNeck = GridPosition(headRow - 1, headCol); 
+        currentTailDir = ArrowDirection.up;
+        break;
+      case ArrowDirection.left:  
+        firstNeck = GridPosition(headRow, headCol + 1); 
+        currentTailDir = ArrowDirection.right;
+        break;
+      case ArrowDirection.right: 
+        firstNeck = GridPosition(headRow, headCol - 1); 
+        currentTailDir = ArrowDirection.left;
+        break;
     }
 
-    // Check if the mandatory neck position is valid and empty
+    // Build a set of cells that make up the exit path. The snake cannot grow into these!
+    final exitPath = <String>{};
+    int er = headRow;
+    int ec = headCol;
+    while (true) {
+      switch (direction) {
+        case ArrowDirection.up:    er--; break;
+        case ArrowDirection.down:  er++; break;
+        case ArrowDirection.left:  ec--; break;
+        case ArrowDirection.right: ec++; break;
+      }
+      if (er < 0 || er >= rows || ec < 0 || ec >= cols) break;
+      exitPath.add('${er}_$ec');
+    }
+
     if (firstNeck.row >= 0 && firstNeck.row < rows && 
         firstNeck.col >= 0 && firstNeck.col < cols && 
-        !occupiedMap.containsKey(firstNeck.toString())) {
+        !occupiedMap.containsKey(firstNeck.toString()) &&
+        !exitPath.contains(firstNeck.toString())) {
       cells.add(firstNeck);
     } else {
-      // If we can't place the mandatory straight neck, this spawn is invalid.
-      // Return early. The caller will discard it because cells.length < minLen.
       return cells; 
     }
 
@@ -130,21 +168,23 @@ class LevelGenerator {
     while (cells.length < target && attempts < 200) {
       attempts++;
       final current = cells.last;
-      final candidates = <GridPosition>[];
-
+      
+      final candidates = <ArrowDirection, GridPosition>{};
       for (final dir in ArrowDirection.values) {
-        if (dir == direction) continue; // Don't grow tail towards the exit direction
         final next = current.shift(dir);
         if (next.row < 0 || next.row >= rows) continue;
         if (next.col < 0 || next.col >= cols) continue;
         if (occupiedMap.containsKey(next.toString())) continue;
         if (cells.contains(next)) continue;
-        candidates.add(next);
+        if (exitPath.contains(next.toString())) continue; // Prevent self-blocking
+        candidates[dir] = next;
       }
 
       if (candidates.isEmpty) break;
-      candidates.shuffle(random);
-      cells.add(candidates.first);
+      
+      final keys = candidates.keys.toList()..shuffle(random);
+      currentTailDir = keys.first;
+      cells.add(candidates[currentTailDir]!);
     }
 
     return cells;
