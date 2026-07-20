@@ -42,6 +42,7 @@ class GameController extends ChangeNotifier {
       return TapResult.extracted;
     } else {
       arrow.state = ArrowState.collided;
+      arrow.isStuck = true;
       gameState.onWrongTap();
       notifyListeners();
       return TapResult.collided;

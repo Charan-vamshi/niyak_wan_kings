@@ -19,28 +19,31 @@ class LevelConfig {
     final cycle = ((level - 1) ~/ 5) + 1;
     switch (difficulty) {
       case DifficultyType.easy:
+        // Previous 'Hard' size
         return LevelConfig(
-          gridRows: 7 + cycle,
-          gridCols: 5 + cycle,
-          arrowCount: 9999,
-          minArrowLength: 2,
-          maxArrowLength: 8,
+          gridRows: 10 + cycle,
+          gridCols: 7 + cycle,
+          arrowCount: 9999, // Uncapped for dense packing
+          minArrowLength: 3,
+          maxArrowLength: 10,
         );
       case DifficultyType.hard:
+        // Previous 'Nightmare' size
         return LevelConfig(
-          gridRows: 14 + cycle,
+          gridRows: 12 + cycle,
           gridCols: 10 + cycle,
           arrowCount: 9999,
-          minArrowLength: 2,
-          maxArrowLength: 6,
+          minArrowLength: 3,
+          maxArrowLength: 15,
         );
       case DifficultyType.nightmare:
+        // Gigantic size, requires panning to see
         return LevelConfig(
-          gridRows: 22 + cycle,
-          gridCols: 16 + cycle,
+          gridRows: 35 + cycle * 2,
+          gridCols: 25 + cycle * 2,
           arrowCount: 9999,
-          minArrowLength: 2,
-          maxArrowLength: 5,
+          minArrowLength: 3,
+          maxArrowLength: 25, // Significantly longer arrows to snake across the massive grid
         );
     }
   }

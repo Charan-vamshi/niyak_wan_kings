@@ -5,6 +5,7 @@ import '../core/arrow_model.dart';
 import '../game/game_controller.dart';
 import '../components/arrow_painter.dart';
 import '../ui/hud.dart';
+import '../ui/laser_button.dart';
 import 'level_complete_screen.dart';
 import 'game_over_screen.dart';
 
@@ -22,6 +23,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   bool _showGameOver = false;
 
   final Set<AnimationController> _activeControllers = {};
+  final ValueNotifier<int> _tapNotifier = ValueNotifier<int>(0);
 
   @override
   void initState() {
@@ -49,6 +51,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     for (final controller in _activeControllers) {
       controller.dispose();
     }
+    _tapNotifier.dispose();
     super.dispose();
   }
 
@@ -73,16 +76,24 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
     if (targetArrow == null) return;
 
+    _tapNotifier.value++; // Notify the LaserButton timer that a tap occurred
+
+    // Auto-hide lasers when the player taps an arrow to hide processing and keep UI clean
+    if (widget.gameState.showGuideLines) {
+      widget.gameState.toggleGuideLines();
+    }
+
     final result = _controller.onArrowTapped(targetArrow);
 
     if (result == TapResult.extracted) {
       final controller = AnimationController(
         vsync: this,
-        duration: const Duration(milliseconds: 1800), // Slower, relaxed speed
+        duration: const Duration(milliseconds: 1400), // Slightly faster but accelerates
       );
       _activeControllers.add(controller);
       
-      final curve = CurvedAnimation(parent: controller, curve: Curves.easeOutCubic);
+      // Realistic extraction: Start from standstill and accelerate
+      final curve = CurvedAnimation(parent: controller, curve: Curves.easeIn);
       
       controller.addListener(() {
         setState(() {
@@ -106,13 +117,17 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   void _startWiggle(ArrowModel targetArrow) {
     final controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 500), // Longer duration to allow the spring to settle
     );
     _activeControllers.add(controller);
     
     controller.addListener(() {
       setState(() {
-        targetArrow.animOffset = sin(controller.value * pi * 3) * 0.1;
+        // Realistic Spring Physics:
+        // Damped harmonic oscillator formula: A * sin(wt) * e^(-dt)
+        // This gives a hard hit into the wall, a slight elastic bounce back, and smooth settling.
+        final t = controller.value;
+        targetArrow.animOffset = 0.15 * sin(t * pi * 4) * exp(-t * 4);
       });
     });
     
@@ -146,36 +161,45 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       body: Stack(
         children: [
           SafeArea(
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.only(top: 80, bottom: 40, left: 16, right: 16),
-                child: InteractiveViewer(
-                  minScale: 1.0,
-                  maxScale: 5.0,
-                  boundaryMargin: const EdgeInsets.symmetric(horizontal: 120, vertical: 120),
-                  clipBehavior: Clip.none, // Allows zooming to overflow the padding for a premium feel
-                  child: FittedBox(
-                    fit: BoxFit.contain,
-                    child: GestureDetector(
-                      onTapUp: (details) => _onTapUp(details, 1.0, Offset.zero),
-                      child: Container(
-                        color: Colors.transparent, // Ensure gesture detector captures taps
-                        width: gridW,
-                        height: gridH,
-                        child: CustomPaint(
-                          size: Size(gridW, gridH),
-                          painter: ArrowPainter(
-                            arrows: _controller.levelData.arrows,
-                            isDark: isDark,
-                            rows: _controller.levelData.rows,
-                            cols: _controller.levelData.cols,
-                            showGuideLines: widget.gameState.showGuideLines,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 80, bottom: 40, left: 16, right: 16),
+              child: ClipRect(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                  return InteractiveViewer(
+                    minScale: 0.15, // Allow zooming out very far to see the massive grid
+                    maxScale: 5.0,
+                    boundaryMargin: const EdgeInsets.symmetric(horizontal: 300, vertical: 300),
+                    clipBehavior: Clip.none, 
+                    constrained: false, // Critical: Allows the grid to be larger than the screen
+                    child: Container(
+                      constraints: BoxConstraints(
+                        minWidth: constraints.maxWidth,
+                        minHeight: constraints.maxHeight,
+                      ),
+                      alignment: Alignment.center,
+                      child: GestureDetector(
+                        onTapUp: (details) => _onTapUp(details, 1.0, Offset.zero),
+                        child: Container(
+                          color: Colors.transparent, 
+                          width: gridW,
+                          height: gridH,
+                          child: CustomPaint(
+                            size: Size(gridW, gridH),
+                            painter: ArrowPainter(
+                              arrows: _controller.levelData.arrows,
+                              isDark: isDark,
+                              rows: _controller.levelData.rows,
+                              cols: _controller.levelData.cols,
+                              showGuideLines: widget.gameState.showGuideLines,
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                ),
+                  );
+                }
+              ),
               ),
             ),
           ),
@@ -187,6 +211,15 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
               totalArrows: _controller.levelData.arrows.length,
               onHintPressed: _onHintPressed,
               onExitPressed: _onExitPressed,
+            ),
+          ),
+
+          Positioned(
+            bottom: 40,
+            right: 24,
+            child: LaserButton(
+              gameState: widget.gameState,
+              tapNotifier: _tapNotifier,
             ),
           ),
 

@@ -30,9 +30,10 @@ class GridPosition {
 class ArrowModel {
   final int id;
   final List<GridPosition> cells;
-  final ArrowDirection direction;
+  ArrowDirection direction;
   ArrowState state;
   double animOffset;
+  bool isStuck;
 
   ArrowModel({
     required this.id,
@@ -40,6 +41,7 @@ class ArrowModel {
     required this.direction,
     this.state = ArrowState.idle,
     this.animOffset = 0,
+    this.isStuck = false,
   });
 
   GridPosition get head => cells[0];

@@ -24,6 +24,7 @@ class GameState extends ChangeNotifier {
   bool get showGuideLines => _showGuideLines;
   bool get isGameOver => _lives <= 0;
   DifficultyType get currentDifficulty => getDifficulty(_currentLevel);
+  int get maxLives => currentDifficulty == DifficultyType.nightmare ? 5 : 3;
 
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -50,7 +51,7 @@ class GameState extends ChangeNotifier {
   void toggleGuideLines() { _showGuideLines = !_showGuideLines; notifyListeners(); }
 
   void resetLevelState() {
-    _lives = 3;
+    _lives = maxLives;
     _hintsLeft = 2;
     _currentStreak = 0;
     notifyListeners();
@@ -79,7 +80,7 @@ class GameState extends ChangeNotifier {
   }
 
   void restartLevel() {
-    _lives = 3;
+    _lives = maxLives;
     _hintsLeft = 2;
     _currentStreak = 0;
     notifyListeners();

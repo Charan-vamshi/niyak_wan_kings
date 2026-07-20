@@ -36,8 +36,9 @@ class LevelGenerator {
     int id = 0;
 
     int failedAttempts = 0;
+    Map<int, Set<int>> dependencyGraph = {};
 
-    while (arrows.length < config.arrowCount && failedAttempts < 5000) {
+    while (arrows.length < config.arrowCount && failedAttempts < 20000) {
       final headRow = random.nextInt(rows);
       final headCol = random.nextInt(cols);
       final headKey = '${headRow}_$headCol';
@@ -48,14 +49,9 @@ class LevelGenerator {
 
       final direction = ArrowDirection.values[random.nextInt(4)];
 
-      if (!_isExitPathClear(headRow, headCol, direction, occupiedMap, rows, cols)) {
-        failedAttempts++;
-        continue;
-      }
-
-      // Standard dense maze packing lengths
-      final currentMinL = 3;
-      final currentMaxL = 10;
+      // Standard dense maze packing lengths based on difficulty
+      final currentMinL = config.minArrowLength;
+      final currentMaxL = config.maxArrowLength;
 
       final cells = _buildSnake(
         headRow: headRow,
@@ -74,7 +70,61 @@ class LevelGenerator {
         continue;
       }
 
-      // Success! Reset failed attempts.
+      // ---------------------------------------------------------
+      // DAG Dependency Checking for Deep Complexity
+      // ---------------------------------------------------------
+      final tempGraph = <int, Set<int>>{};
+      dependencyGraph.forEach((k, v) => tempGraph[k] = Set.from(v));
+      tempGraph[id] = <int>{};
+
+      // 1. What does the new arrow (id) depend on?
+      int er = cells.first.row;
+      int ec = cells.first.col;
+      while (true) {
+        switch (direction) {
+          case ArrowDirection.up:    er--; break;
+          case ArrowDirection.down:  er++; break;
+          case ArrowDirection.left:  ec--; break;
+          case ArrowDirection.right: ec++; break;
+        }
+        if (er < 0 || er >= rows || ec < 0 || ec >= cols) break;
+        final key = '${er}_$ec';
+        if (occupiedMap.containsKey(key)) {
+          tempGraph[id]!.add(occupiedMap[key]!);
+        }
+      }
+
+      // 2. Which existing arrows depend on the new arrow?
+      final nBodyKeys = cells.map((c) => c.toString()).toSet();
+      for (final existing in arrows) {
+        int exr = existing.cells.first.row;
+        int exc = existing.cells.first.col;
+        while (true) {
+          switch (existing.direction) {
+            case ArrowDirection.up:    exr--; break;
+            case ArrowDirection.down:  exr++; break;
+            case ArrowDirection.left:  exc--; break;
+            case ArrowDirection.right: exc++; break;
+          }
+          if (exr < 0 || exr >= rows || exc < 0 || exc >= cols) break;
+          
+          if (nBodyKeys.contains('${exr}_$exc')) {
+            if (!tempGraph.containsKey(existing.id)) {
+              tempGraph[existing.id] = <int>{};
+            }
+            tempGraph[existing.id]!.add(id);
+          }
+        }
+      }
+
+      // 3. Reject if adding this arrow creates a deadlock cycle
+      if (_hasCycle(tempGraph)) {
+        failedAttempts++;
+        continue;
+      }
+
+      // Success! Update graph and place arrow.
+      dependencyGraph = tempGraph;
       failedAttempts = 0;
 
       for (final cell in cells) {
@@ -87,22 +137,33 @@ class LevelGenerator {
     return LevelData(arrows: arrows, rows: rows, cols: cols);
   }
 
-  static bool _isExitPathClear(
-    int row, int col, ArrowDirection dir,
-    Map<String, int> occupied, int rows, int cols,
-  ) {
-    int r = row;
-    int c = col;
-    while (true) {
-      switch (dir) {
-        case ArrowDirection.up:    r--; break;
-        case ArrowDirection.down:  r++; break;
-        case ArrowDirection.left:  c--; break;
-        case ArrowDirection.right: c++; break;
+  static bool _hasCycle(Map<int, Set<int>> graph) {
+    final visited = <int>{};
+    final recStack = <int>{};
+
+    bool dfs(int node) {
+      if (recStack.contains(node)) return true;
+      if (visited.contains(node)) return false;
+
+      visited.add(node);
+      recStack.add(node);
+
+      if (graph.containsKey(node)) {
+        for (final neighbor in graph[node]!) {
+          if (dfs(neighbor)) return true;
+        }
       }
-      if (r < 0 || r >= rows || c < 0 || c >= cols) return true;
-      if (occupied.containsKey('${r}_$c')) return false;
+
+      recStack.remove(node);
+      return false;
     }
+
+    for (final node in graph.keys) {
+      if (!visited.contains(node)) {
+        if (dfs(node)) return true;
+      }
+    }
+    return false;
   }
 
   static List<GridPosition> _buildSnake({

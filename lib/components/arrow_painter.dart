@@ -23,9 +23,14 @@ class ArrowPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     // 0. Draw Guide Lines (Tangents) if enabled
     if (showGuideLines) {
-      final linePaint = Paint()
-        ..color = isDark ? Colors.white24 : Colors.black26
-        ..strokeWidth = 1.5
+      final normalLinePaint = Paint()
+        ..color = isDark ? const Color(0xFF333333) : const Color(0xFFD0D0D0)
+        ..strokeWidth = cellSize * 0.15
+        ..style = PaintingStyle.stroke;
+
+      final stuckLinePaint = Paint()
+        ..color = const Color(0xFFD32F2F) // Red for stuck lasers
+        ..strokeWidth = cellSize * 0.15
         ..style = PaintingStyle.stroke;
         
       for (final arrow in arrows) {
@@ -35,14 +40,14 @@ class ArrowPainter extends CustomPainter {
         Offset target = headCenter;
         
         switch (arrow.direction) {
-          case ArrowDirection.up:    target = Offset(headCenter.dx, 0); break;
-          case ArrowDirection.down:  target = Offset(headCenter.dx, rows * cellSize); break;
-          case ArrowDirection.left:  target = Offset(0, headCenter.dy); break;
-          case ArrowDirection.right: target = Offset(cols * cellSize, headCenter.dy); break;
+          case ArrowDirection.up:    target = Offset(headCenter.dx, -10000); break;
+          case ArrowDirection.down:  target = Offset(headCenter.dx, 10000); break;
+          case ArrowDirection.left:  target = Offset(-10000, headCenter.dy); break;
+          case ArrowDirection.right: target = Offset(10000, headCenter.dy); break;
         }
         
         // Draw the laser line from the head to the edge of the board
-        canvas.drawLine(headCenter, target, linePaint);
+        canvas.drawLine(headCenter, target, arrow.isStuck ? stuckLinePaint : normalLinePaint);
       }
     }
 
@@ -145,8 +150,8 @@ class ArrowPainter extends CustomPainter {
     // 3. Define colors (Thin solid styling)
     Color baseColor;
     
-    if (arrow.state == ArrowState.collided) {
-      baseColor = const Color(0xFFD32F2F); // Red for collision
+    if (arrow.state == ArrowState.collided || arrow.isStuck) {
+      baseColor = const Color(0xFFD32F2F); // Red for collision or stuck
     } else {
       baseColor = isDark ? Colors.white : Colors.black;
     }

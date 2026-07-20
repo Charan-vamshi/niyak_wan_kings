@@ -46,7 +46,7 @@ class HudWidget extends StatelessWidget {
                             letterSpacing: 2)),
                     Row(
                       mainAxisSize: MainAxisSize.min,
-                      children: List.generate(3, (i) => Padding(
+                      children: List.generate(gameState.maxLives, (i) => Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
                         child: Icon(
                           i < gameState.lives ? Icons.favorite : Icons.favorite_border,
@@ -62,12 +62,6 @@ class HudWidget extends StatelessWidget {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    GestureDetector(
-                      onTap: gameState.toggleGuideLines,
-                      child: Icon(Icons.grid_4x4,
-                          color: gameState.showGuideLines ? fg : fg.withAlpha(76), size: 24),
-                    ),
-                    const SizedBox(width: 16),
                     GestureDetector(
                       onTap: gameState.hintsLeft > 0 ? onHintPressed : null,
                       child: Icon(Icons.lightbulb_outline,
