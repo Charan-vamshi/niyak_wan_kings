@@ -166,32 +166,47 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
               child: ClipRect(
                 child: LayoutBuilder(
                   builder: (context, constraints) {
-                  return InteractiveViewer(
-                    minScale: 0.15, // Allow zooming out very far to see the massive grid
-                    maxScale: 5.0,
-                    boundaryMargin: const EdgeInsets.symmetric(horizontal: 300, vertical: 300),
-                    clipBehavior: Clip.none, 
-                    constrained: false, // Critical: Allows the grid to be larger than the screen
-                    child: Container(
-                      constraints: BoxConstraints(
-                        minWidth: constraints.maxWidth,
-                        minHeight: constraints.maxHeight,
-                      ),
-                      alignment: Alignment.center,
-                      child: GestureDetector(
-                        onTapUp: (details) => _onTapUp(details, 1.0, Offset.zero),
-                        child: Container(
-                          color: Colors.transparent, 
-                          width: gridW,
-                          height: gridH,
-                          child: CustomPaint(
-                            size: Size(gridW, gridH),
-                            painter: ArrowPainter(
-                              arrows: _controller.levelData.arrows,
-                              isDark: isDark,
-                              rows: _controller.levelData.rows,
-                              cols: _controller.levelData.cols,
-                              showGuideLines: widget.gameState.showGuideLines,
+                  return TweenAnimationBuilder<double>(
+                    key: ValueKey(widget.gameState.currentLevel),
+                    tween: Tween<double>(begin: 0.0, end: 1.0),
+                    duration: const Duration(milliseconds: 1200),
+                    curve: Curves.easeOutCubic,
+                    builder: (context, value, child) {
+                      return Opacity(
+                        opacity: value,
+                        child: Transform.scale(
+                          scale: 1.2 - (value * 0.2), // Zoom out smoothly from 1.2x down to 1.0x
+                          child: child,
+                        ),
+                      );
+                    },
+                    child: InteractiveViewer(
+                      minScale: 0.15, // Allow zooming out very far to see the massive grid
+                      maxScale: 5.0,
+                      boundaryMargin: const EdgeInsets.symmetric(horizontal: 300, vertical: 300),
+                      clipBehavior: Clip.none, 
+                      constrained: false, // Critical: Allows the grid to be larger than the screen
+                      child: Container(
+                        constraints: BoxConstraints(
+                          minWidth: constraints.maxWidth,
+                          minHeight: constraints.maxHeight,
+                        ),
+                        alignment: Alignment.center,
+                        child: GestureDetector(
+                          onTapUp: (details) => _onTapUp(details, 1.0, Offset.zero),
+                          child: Container(
+                            color: Colors.transparent, 
+                            width: gridW,
+                            height: gridH,
+                            child: CustomPaint(
+                              size: Size(gridW, gridH),
+                              painter: ArrowPainter(
+                                arrows: _controller.levelData.arrows,
+                                isDark: isDark,
+                                rows: _controller.levelData.rows,
+                                cols: _controller.levelData.cols,
+                                showGuideLines: widget.gameState.showGuideLines,
+                              ),
                             ),
                           ),
                         ),

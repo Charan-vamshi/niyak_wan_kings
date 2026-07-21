@@ -88,12 +88,12 @@ class _LaserButtonState extends State<LaserButton> with SingleTickerProviderStat
             width: 76,
             height: 100, // Increased vertical oval size
             decoration: BoxDecoration(
-              color: const Color(0xFF00B0FF), // Bright Blue always
+              color: const Color(0xFFD4AF37), // Premium Metallic Gold
               borderRadius: const BorderRadius.all(Radius.elliptical(38, 50)), // Perfect egg curve for 76x100
               boxShadow: _shakeController.isAnimating
                   ? [
                       BoxShadow(
-                        color: const Color(0xFF00B0FF).withOpacity(0.6), // Aura only during shake
+                        color: const Color(0xFFD4AF37).withOpacity(0.6), // Aura only during shake
                         blurRadius: 20,
                         spreadRadius: 2,
                       )

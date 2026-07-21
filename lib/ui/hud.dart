@@ -63,6 +63,20 @@ class HudWidget extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     GestureDetector(
+                      onTap: gameState.toggleTheme,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        margin: const EdgeInsets.only(right: 16),
+                        decoration: BoxDecoration(
+                          color: fg.withAlpha(15),
+                          borderRadius: BorderRadius.circular(30),
+                          border: Border.all(color: fg.withAlpha(30)),
+                        ),
+                        child: Icon(isDark ? Icons.light_mode : Icons.dark_mode,
+                            color: fg.withAlpha(180), size: 18),
+                      ),
+                    ),
+                    GestureDetector(
                       onTap: gameState.hintsLeft > 0 ? onHintPressed : null,
                       child: Icon(Icons.lightbulb_outline,
                           color: gameState.hintsLeft > 0 ? fg : fg.withAlpha(76), size: 24),
