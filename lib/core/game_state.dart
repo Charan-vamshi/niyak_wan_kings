@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'arrow_model.dart';
 
+/// Manages the global state of the Niyak Wana-Kings puzzle game, including
+/// persistence, theme management, lives, and streak tracking.
 class GameState extends ChangeNotifier {
   int _currentLevel = 1;
   int _lives = 3;
