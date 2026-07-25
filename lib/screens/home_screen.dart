@@ -128,7 +128,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                           ),
                         ),
                       ),
-                      const SizedBox(height: 40), // Padding at the very bottom
+                      const SizedBox(height: 48), // Extra padding at the very bottom
                     ],
                   ),
                 ), // Center
