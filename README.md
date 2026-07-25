@@ -1,16 +1,12 @@
-# niyak_wan_kings
+# Niyak Wana-Kings
 
-A new Flutter project.
+A premium cinematic puzzle escape game built in Flutter.
 
-## Getting Started
+## Overview
+Slide interlocking arrows to untangle massive puzzle grids. The game features realistic spring physics, collision detection, and a dynamic directed acyclic graph (DAG) level generator that creates infinitely scaling puzzles without deadlocks.
 
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Features
+- Dynamic Grid Generation
+- Infinite panning and zooming canvas
+- Spring physics and custom animations
+- Global Light/Dark theme Support
